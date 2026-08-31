@@ -130,6 +130,36 @@ def create_app(app: DS5HubApp) -> FastAPI:
     def api_components():
         return app.check_components()
 
+    # ---- 一键环境部署 ----
+    @fastapi_app.get("/api/environment", dependencies=[Depends(check_token)])
+    def api_environment():
+        return app.orchestrator.status()
+
+    @fastapi_app.post("/api/environment/deploy", dependencies=[Depends(check_token)])
+    def api_environment_deploy():
+        return app.orchestrator.start()
+
+    # ---- 手动本机 attach（自动 attach 失败后的重试入口） ----
+    @fastapi_app.post("/api/pads/{pad_id}/attach", dependencies=[Depends(check_token)])
+    def api_pad_attach(pad_id: str):
+        return app.attach_pad(pad_id)
+
+    # ---- 一键卸载 ----
+    @fastapi_app.get("/api/uninstall", dependencies=[Depends(check_token)])
+    def api_uninstall_status():
+        return app.uninstaller.status()
+
+    @fastapi_app.post("/api/uninstall", dependencies=[Depends(check_token)])
+    async def api_uninstall(request: Request):
+        try:
+            data = await request.json()
+        except Exception:  # noqa: BLE001
+            data = {}
+        remove_components = bool(data.get("remove_components", False))
+        remove_config = bool(data.get("remove_config", True))
+        return app.uninstaller.start(
+            remove_components=remove_components, remove_config=remove_config)
+
     # ---- 日志 ----
     @fastapi_app.get("/api/logs", dependencies=[Depends(check_token)])
     def api_logs(limit: int = 500, level: str = ""):

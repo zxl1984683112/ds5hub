@@ -19,7 +19,7 @@ def run_test():
     # Setup
     cfg = Config()
     init(level="INFO", ring_size=500)
-    app = DS5HubApp(config=cfg, simulated=True)
+    app = DS5HubApp(config=cfg)
     api = create_app(app)
     client = TestClient(api)
     
@@ -39,31 +39,39 @@ def run_test():
     check("GET /api/status → 200", r.status_code == 200)
     data = r.json()
     check("status字段有running", data.get("status") == "running", f"got {data.get('status')}")
-    check("pads数组非空", isinstance(data.get("pads"), list) and len(data["pads"]) > 0, f"len={len(data.get('pads',[]))}")
+    check("mode为real(无模拟)", data.get("mode") == "real", f"got {data.get('mode')}")
+    check("pads为数组(真实模式,无手柄时为空)", isinstance(data.get("pads"), list), f"len={len(data.get('pads',[]))}")
     check("config有usbip_host", "usbip_host" in str(data.get("config")), "")
     check("hidhide有status键", "hidhide" in data or "hidhide_status" in data, "")
     check("components有检测结果", "components" in data, f"keys: {list(data.keys())}")
-    pad = data["pads"][0]
-    check("每个pad含pad_id/name/vid/pid/state", 
-          all(k in pad for k in ("pad_id","name","vid","pid","state")),
-          f"keys={list(pad.keys())}")
+    pads = data.get("pads", [])
+    if pads:
+        pad = pads[0]
+        check("每个pad含pad_id/name/vid/pid/state",
+              all(k in pad for k in ("pad_id","name","vid","pid","state")),
+              f"keys={list(pad.keys())}")
+    else:
+        check("真实模式无手柄:pads为空列表(合法)", True)
     
-    # ---- /api/pads/{id}/action connect ----
+    # ---- /api/pads/{id}/action ----
     print("\n🎮 [Pad Actions]")
-    pid = pad["pad_id"]
+    if pads:
+        pid = pads[0]["pad_id"]
+    else:
+        pid = "no-such-pad"   # 无手柄环境:用未知ID验证错误路径
     r = client.post(f"/api/pads/{pid}/action", json={"action":"connect"})
     check(f"POST /pads/{pid}/action connect → 200", r.status_code == 200)
-    ok = r.json().get("ok")
-    check("connect 返回 ok=true", ok is True, f"result={r.json()}")
-    
-    # disconnect
-    r = client.post(f"/api/pads/{pid}/action", json={"action":"disconnect"})
-    check("POST /pads/{pid}/action disconnect → 200", r.status_code == 200)
-    
-    # reconnect
-    r = client.post(f"/api/pads/{pid}/action", json={"action":"reconnect"})
-    check("POST /pads/{pid}/action reconnect → 200", r.status_code == 200)
-    
+    if pads:
+        check("connect 返回 ok=true", r.json().get("ok") is True, f"result={r.json()}")
+        # disconnect
+        r = client.post(f"/api/pads/{pid}/action", json={"action":"disconnect"})
+        check("POST /pads/{pid}/action disconnect → 200", r.status_code == 200)
+        # reconnect
+        r = client.post(f"/api/pads/{pid}/action", json={"action":"reconnect"})
+        check("POST /pads/{pid}/action reconnect → 200", r.status_code == 200)
+    else:
+        check("未知pad connect 返回 ok=false(错误路径)", r.json().get("ok") is False, f"result={r.json()}")
+
     # invalid action
     r = client.post(f"/api/pads/{pid}/action", json={"action":"invalid_action_xyz"})
     check("POST /pads/{pid}/action invalid → error", not r.json().get("ok", True))

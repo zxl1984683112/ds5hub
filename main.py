@@ -6,7 +6,6 @@ DS5Hub 入口：托盘 + Web 管理 + 核心服务。
   python main.py            # 正常启动（含托盘）
   python main.py --tray     # 开机自启模式：托盘 + 服务，不主动开浏览器
   python main.py --web-only # 仅 Web（调试）
-  python main.py --real     # 真实手柄模式（开发机无 hidapi 时仍回退模拟）
   python main.py --detect   # 仅组件检测后退出
   python main.py --pack     # 生成安装脚本后退出
 """
@@ -66,7 +65,7 @@ def run_tray(app: DS5HubApp) -> None:
     menu = (
         pystray.MenuItem("打开管理面板", on_open),
         pystray.MenuItem("组件检测", on_detect),
-        pystray.Menu.separator(),
+        pystray.Menu.SEPARATOR,
         pystray.MenuItem("退出", lambda: (app.stop(), icon.stop())),
     )
     icon = pystray.Icon("DS5Hub", make_icon(), "DS5Hub", menu)
@@ -114,10 +113,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="DS5Hub - DualSense USB/IP Hub")
     parser.add_argument("--tray", action="store_true", help="最小化托盘启动（开机自启）")
     parser.add_argument("--web-only", action="store_true", help="仅 Web 服务")
-    parser.add_argument("--simulated", action="store_true", default=True,
-                        help="开发模式：使用模拟手柄（默认开）")
-    parser.add_argument("--real", action="store_true",
-                        help="真实手柄模式")
     parser.add_argument("--config", default=None, help="配置文件路径")
     parser.add_argument("--detect", action="store_true",
                         help="仅组件检测并退出")
@@ -134,15 +129,11 @@ def main() -> None:
         ring_size=cfg.get("log.ring_size", 2000),
     )
     
-    simulated = args.simulated
-    if args.real:
-        simulated = False
-    
     logger.info(f"DS5Hub 启动 (v{__import__('ds5hub').__version__})")
     logger.info(f"配置: {cfg.path}")
-    logger.info(f"模式: {'模拟' if simulated else '真实'}")
+    logger.info("模式: 真实手柄 (hidapi)")
 
-    app = DS5HubApp(cfg, simulated=simulated)
+    app = DS5HubApp(cfg)
 
     # ---- 特殊命令 ----
     if args.detect:

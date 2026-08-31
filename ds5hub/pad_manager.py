@@ -6,13 +6,12 @@ PadSlot 状态机:
   DISCONNECTED -> CONNECTING -> READY -> EXPOSED(SERVICE_RUNNING)
   READY/EXPOSED -> DISCONNECTED (掉线) -> CONNECTING ... (自动重连)
 
-开发机（无真实手柄）使用 SimulatedPad 桩；目标机使用 HidPad。
+仅管理真实 hidapi 设备（HidPad），不再提供模拟桩。
 """
 from __future__ import annotations
 
 import threading
 import time
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -80,7 +79,7 @@ class PadSlot:
 
 
 class AbstractPadDevice:
-    """手柄设备抽象：真实（hidapi）或模拟桩。"""
+    """手柄设备抽象（真实 hidapi 设备实现此接口）。"""
     def open(self) -> bool: raise NotImplementedError
     def close(self) -> None: raise NotImplementedError
     def read_report(self, timeout_ms: int = 100) -> bytes | None: raise NotImplementedError
@@ -93,7 +92,7 @@ class PadManager:
     def __init__(self, factory=None):
         """
         factory: callable(pad_id) -> AbstractPadDevice，用于创建真实设备。
-                 留空时用 SimulatedPad 桩（开发机）。
+                 留空时仅注册槽位、不创建设备（get_device 返回 None）。
         """
         self._factory = factory
         self._slots: dict[str, PadSlot] = {}
@@ -112,9 +111,8 @@ class PadManager:
             self._slots[info.pad_id] = slot
             if self._factory:
                 dev = self._factory(info.pad_id)
-            else:
-                dev = SimulatedPad(info)
-            self._devices[info.pad_id] = dev
+                if dev is not None:
+                    self._devices[info.pad_id] = dev
             self._log(f"注册手柄: {info.name} ({info.pad_id})")
             return slot
 
@@ -205,54 +203,3 @@ class PadManager:
     def _log(self, msg: str):
         from . import logger
         logger.info(msg)
-
-
-class SimulatedPad(AbstractPadDevice):
-    """模拟桩手柄：开发机无真实设备时使用。可伪造报告。"""
-    def __init__(self, info: PadInfo):
-        self._info = info
-        self._open = False
-        self._counter = 0
-
-    def open(self) -> bool:
-        self._open = True
-        return True
-
-    def close(self) -> None:
-        self._open = False
-
-    def is_open(self) -> bool:
-        return self._open
-
-    def read_report(self, timeout_ms: int = 100) -> bytes | None:
-        if not self._open:
-            return None
-        time.sleep(0.005)
-        self._counter += 1
-        # 模拟 64 字节输入报告（与 DualSense 相似）
-        rep = bytearray(64)
-        rep[0] = 0x11  # report id -> 实际 DualSense 无 report id，模拟
-        rep[1] = self._counter & 0xFF
-        rep[2] = (self._counter >> 8) & 0xFF
-        return bytes(rep)
-
-    def write_report(self, data: bytes) -> bool:
-        return self._open
-
-    def describe(self) -> PadInfo:
-        return self._info
-
-
-def default_simulated_pads(count: int = 2) -> PadManager:
-    """创建带 N 个模拟手柄的管理器（开发机演示/测试）。"""
-    mgr = PadManager()
-    for i in range(count):
-        info = PadInfo(
-            pad_id=f"sim-{uuid.uuid4().hex[:6]}",
-            name=f"Simulated DualSense #{i + 1}",
-            vid=0x054C, pid=0x0CE6,
-            connection="simulated",
-            serial=f"SIM{i+1:04d}",
-        )
-        mgr.register(info, auto_port=3240 + i)
-    return mgr

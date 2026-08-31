@@ -346,9 +346,35 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--muted);border-t
         <div class="hidhide-status"><span id="hhStatusBadge" class="badge idle"><span class="badge-dot"></span>检测中…</span></div>
         <div class="hint" id="hhStatusMsg">正在检测 HidHide 驱动状态…</div>
       </div>
+      <div class="card" style="border-color:rgba(229,72,77,.35);">
+        <div class="card-title"><span class="icon">🗑️</span>危险区 · 一键卸载</div>
+        <div class="switch-wrap" style="margin-bottom:10px;">
+          <label class="switch"><input type="checkbox" id="uninstComponents"><span class="slider"></span></label>
+          <span style="font-size:13px;color:var(--muted)">同时卸载 HidHide / usbipd-win 驱动组件</span>
+        </div>
+        <button class="btn danger" id="btnUninstall" style="width:100%" onclick="runUninstall()">🗑️ 一键卸载 DS5Hub</button>
+        <div id="uninstBox" style="display:none;margin-top:8px;">
+          <div style="height:6px;border-radius:3px;background:var(--border);overflow:hidden;">
+            <div id="uninstBar" style="height:100%;width:0%;border-radius:3px;background:linear-gradient(90deg,#e5484d,#ff8a5c);transition:width .4s;"></div>
+          </div>
+          <div id="uninstMsg" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+          <div id="uninstSteps" style="font-size:10px;color:var(--muted);margin-top:6px;max-height:120px;overflow-y:auto;"></div>
+        </div>
+        <div class="hint">卸载顺序：解除手柄隐藏 → 停止服务 → 移除自启 →（可选）卸载驱动组件 → 清理配置 → 自删程序。HidHide 可能被其他手柄软件依赖，默认保留。</div>
+      </div>
       <div class="card">
         <div class="card-title"><span class="icon">🧩</span>组件检测</div>
         <div id="componentsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+        <div style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+          <button class="btn" id="btnDeploy" style="width:100%" onclick="deployEnvironment()">🚀 一键环境部署（自动安装 HidHide + usbipd）</button>
+          <div id="deployBox" style="display:none;margin-top:8px;">
+            <div style="height:6px;border-radius:3px;background:var(--border);overflow:hidden;">
+              <div id="deployBar" style="height:100%;width:0%;border-radius:3px;background:linear-gradient(90deg,var(--accent,#4f8cff),#7f5cff);transition:width .4s;"></div>
+            </div>
+            <div id="deployMsg" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>
+            <div id="deploySteps" style="font-size:10px;color:var(--muted);margin-top:6px;max-height:120px;overflow-y:auto;"></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -400,7 +426,7 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--muted);border-t
           <li><strong>启动 DS5Hub</strong> — 程序自动检测已连接的手柄（USB/蓝牙均可识别）。在「手柄管理」页确认列表。</li>
           <li><strong>添加白名单</strong> — 回到仪表盘点击「一键添加白名单」或将 exe 添加到 HidHide 白名单。</li>
           <li><strong>隐藏真实手柄</strong> — 点击对应手柄卡片上的「隐藏」按钮，使系统不再直接读取该手柄。</li>
-          <li><strong>客户端连接</strong> — 在 Linux 上执行：<code>usbip attach -r 127.0.0.1 -b 1-X</code></li>
+          <li><strong>客户端连接（本机回环）</strong> — 安装 usbipd-win 后，以管理员身份执行：<code>usbip attach -r 127.0.0.1 -b 1-X</code>。Windows 将出现完整功能的虚拟 DualSense（自适应扳机/触觉/灯效全保留），游戏直接识别。</li>
         </ol>
       </div>
       <div class="guide-section">
@@ -440,16 +466,19 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--muted);border-t
         <div class="guide-tip"><strong>💡 要求：</strong>WebHID 功能需要在 Chromium 内核浏览器（Chrome/Edge）中使用，Firefox 需要安装 WebHID 扩展。</div>
       </div>
       <div class="guide-section">
-        <h3>💻 五、Linux 客户端用法</h3>
-        <h4>方法一：使用 usbip 工具链</h4>
-        <pre><code># 列出服务端可用设备
+        <h3>💻 五、客户端 attach 用法</h3>
+        <h4>主场景：Windows 本机回环（usbipd-win 提供 usbip 客户端 + vhci 驱动）</h4>
+        <pre><code>:: 以管理员身份运行（usbipd-win 安装后自带 usbip.exe）
 usbip list -r 127.0.0.1
+usbip attach -r 127.0.0.1 -b 1-1</code></pre>
+        <p>attach 成功后，Windows 设备管理器将出现虚拟 DualSense；Steam / 游戏即可完整识别全部功能（自适应扳机、触觉反馈、灯效）。</p>
+        <h4>扩展：Linux 主机远程 attach</h4>
+        <pre><code># 列出服务端可用设备（IP 为运行 DS5Hub 的主机）
+usbip list -r &lt;DS5Hub&#x4E3B;&#x673A;IP&gt;
 
 # 绑定目标设备（busid 在 Web 面板查看）
 sudo modprobe vhci-hcd
-usbip attach -r 127.0.0.1 -b 1-1</code></pre>
-        <h4>方法二：使用 xboxdrv</h4>
-        <pre><code>xboxdrv --udp-prefix "" --udp-host 127.0.0.1 --udp-port 22255</code></pre>
+usbip attach -r &lt;DS5Hub&#x4E3B;&#x673A;IP&gt; -b 1-1</code></pre>
       </div>
       <div class="guide-section">
         <h3>🔧 六、常见问题排查</h3>
@@ -457,6 +486,8 @@ usbip attach -r 127.0.0.1 -b 1-1</code></pre>
         <ul><li>确认手柄已通过蓝牙或 USB 正确连接到电脑。</li><li>在 Windows「蓝牙和其他设备」中确认手柄已配对且状态为"已连接"。</li><li>尝试拔掉重插（USB 模式）或在设置中重新配对（蓝牙）。</li></ul>
         <h4>Q: 游戏依然能检测到原始手柄？</h4>
         <ul><li>确认 HidHide 驱动已经正确安装并处于运行状态（服务名为 NefariusHidHide）。</li><li>确认已将游戏的可执行文件 (.exe) 添加到 HidHide 白名单中。</li><li>确认已在 DS5Hub 中对目标手柄执行了"隐藏"操作。</li></ul>
+        <h4>Q: Windows 本机 usbip attach 失败？</h4>
+        <ul><li>确认已安装 usbipd-win（提供 usbip.exe 与 vhci 驱动），并以<strong>管理员身份</strong>执行 attach。</li><li>首次 attach 需等待 vhci 驱动加载；若提示驱动异常，重启系统后再试。</li><li>确认 DS5Hub 对应手柄端口已监听（手柄卡片显示的端口号）。</li></ul>
         <h4>Q: Linux 客户端无法连接？</h4>
         <ul><li>确认防火墙已开放对应的 USB/IP 端口（默认 3240+）。</li><li>确认 <code>usbip</code> 版本与服务器端兼容（建议使用 2.0+）。</li></ul>
       </div>
@@ -472,12 +503,16 @@ usbip attach -r 127.0.0.1 -b 1-1</code></pre>
       </div>
       <div class="guide-section">
         <h3>🗑️ 八、卸载与清除</h3>
+        <p style="font-size:13px;line-height:1.7;margin-bottom:8px;">推荐使用内置一键卸载：<strong>设置页 → 危险区 → 「一键卸载 DS5Hub」</strong>。它会按安全顺序自动执行：</p>
         <ol class="step-list">
-          <li><strong>取消 HidHide 隐藏</strong> — 在 DS5Hub 仪表盘点击「取消所有隐藏」。</li>
-          <li><strong>关闭 DS5Hub</strong> — 右键托盘图标 → 退出。</li>
-          <li><strong>移除 HidHide 驱动</strong> — Windows「应用和功能」中找到 HidHide 并卸载。</li>
-          <li><strong>清理残留</strong> — 删除 <code>%APPDATA%\DS5Hub\</code> 下的配置文件。</li>
+          <li><strong>解除手柄隐藏</strong> — 第一步必做：若先卸载 HidHide 驱动，真实手柄会从系统消失。</li>
+          <li><strong>停止全部服务</strong> — usbip 服务端、自动 attach、重连与托盘。</li>
+          <li><strong>移除开机自启</strong> — 清理 HKCU Run 注册表项。</li>
+          <li><strong>（可选）卸载驱动组件</strong> — 默认保留 HidHide / usbipd-win（其他软件可能依赖）；勾选后经 UAC 确认静默卸载官方 MSI。</li>
+          <li><strong>清理配置数据</strong> — 删除 <code>%APPDATA%\DS5Hub\</code> 与 msi 缓存。</li>
+          <li><strong>自删程序</strong> — 退出后自动删除 DS5Hub.exe。</li>
         </ol>
+        <p style="font-size:12px;color:var(--muted);margin-top:6px;">手动兜底路径：仪表盘「取消所有隐藏」→ 托盘退出 → Windows「应用和功能」卸载 HidHide / usbipd-win → 删除 <code>%APPDATA%\DS5Hub\</code> 与 DS5Hub.exe。</p>
       </div>
     </div>
   </div>
@@ -542,6 +577,7 @@ async function refreshStatus(){
       document.getElementById('hhStatusMsg').textContent=hh.message||'—';
     }
     document.getElementById('reconnectToggle').checked=s.reconnector?.enabled??true;
+    try{renderEnvironment(await j('/api/environment'));}catch(e){}
   } catch(e){console.error(e);}
 }
 
@@ -584,6 +620,102 @@ function renderComponents(comp){
 }
 
 async function padAction(id,action){await j(`/api/pads/${id}/action`,{method:'POST',body:JSON.stringify({action})});refreshStatus();}
+
+/* ---- 一键环境部署 ---- */
+const envStateLabel={idle:'待部署',preparing:'获取安装包…',installing:'静默安装中…',verifying:'验证就绪…',post:'自动配置…',done:'部署完成',needs_reboot:'需重启生效',failed:'部署失败'};
+async function deployEnvironment(){
+  try{
+    const cur=await j('/api/environment');
+    if(cur.running){alert('部署已在进行中，请等待完成。');return;}
+    if(cur.state==='done'&&!confirm('组件已部署过，需要重新安装吗？'))return;
+    if(!confirm('即将自动安装官方组件（HidHide 驱动 + usbipd-win）。\n\n过程中会弹出 1 次 UAC 管理员确认窗口，请点击"是"。\n安装来源为各官方项目的原封 MSI 安装包。\n\n继续？'))return;
+    const r=await j('/api/environment/deploy',{method:'POST'});
+    if(!r.ok){alert(r.error||'启动失败');return;}
+    document.getElementById('deployBox').style.display='block';
+    pollEnvironment();
+  }catch(e){alert('操作失败: '+e.message);}
+}
+let _envPoll=null;
+function pollEnvironment(){
+  if(_envPoll)clearInterval(_envPoll);
+  _envPoll=setInterval(async()=>{
+    try{
+      const env=await j('/api/environment');
+      renderEnvironment(env,true);
+      if(!env.running){clearInterval(_envPoll);_envPoll=null;}
+    }catch(e){console.error(e);}
+  },1500);
+}
+function renderEnvironment(env,verbose){
+  if(!env)return;
+  const btn=document.getElementById('btnDeploy'),box=document.getElementById('deployBox');
+  const bar=document.getElementById('deployBar'),msg=document.getElementById('deployMsg'),steps=document.getElementById('deploySteps');
+  const active=env.running||(env.state!=='idle'&&env.state!=='done'&&env.state!=='failed'&&env.state!=='needs_reboot');
+  if(active){box.style.display='block';btn.disabled=true;btn.textContent='⏳ '+envStateLabel[env.state]||env.state;}
+  else{btn.disabled=false;
+    btn.textContent=env.state==='done'?'✅ 组件已就绪（点击可重新部署）':env.state==='needs_reboot'?'🔄 部署完成，请重启系统':'🚀 一键环境部署（自动安装 HidHide + usbipd）';}
+  bar.style.width=(env.progress||0)+'%';
+  let m=env.message||'';
+  if(env.error)m+=' — '+env.error;
+  if(env.dry_run)m+='（dry_run 模拟模式）';
+  msg.textContent=m;
+  msg.style.color=env.state==='failed'?'var(--red, #e5484d)':env.state==='done'||env.state==='needs_reboot'?'var(--green, #30a46c)':'var(--muted)';
+  if(verbose&&env.log&&env.log.length){
+    steps.innerHTML=env.log.slice(-8).map(l=>`<div style="${l.level==='error'?'color:var(--red,#e5484d);':''}">[${esc(l.t)}] ${esc(l.msg)}</div>`).join('');
+    steps.scrollTop=steps.scrollHeight;
+  }
+  // 部署完成后刷新组件检测
+  if(env.state==='done'||env.state==='needs_reboot')refreshStatus();
+}
+
+/* ---- 一键卸载 ---- */
+const uninstStateLabel={idle:'待卸载',unhiding:'解除手柄隐藏…',stopping:'停止服务…',autostart:'移除自启…',components:'卸载驱动组件…',cleanup:'清理配置…',self_delete:'安排自删…',done:'卸载完成',needs_reboot:'卸载完成（建议重启）',failed:'卸载失败'};
+async function runUninstall(){
+  try{
+    const cur=await j('/api/uninstall');
+    if(cur.running){alert('卸载已在进行中。');return;}
+    const rc=document.getElementById('uninstComponents').checked;
+    let msg='确定要完全卸载 DS5Hub 吗？\n\n将依次执行：\n1. 解除手柄隐藏（防止手柄不可见）\n2. 停止全部服务\n3. 移除开机自启\n4. 清理配置数据\n5. 退出并自动删除程序';
+    if(rc)msg+='\n6. ⚠ 卸载 HidHide / usbipd-win 驱动组件（需 UAC 确认）';
+    if(!confirm(msg))return;
+    if(rc&&!confirm('再次确认：同时卸载驱动组件？\n\nHidHide 是通用过滤驱动，Steam 输入映射等第三方手柄工具可能依赖它。'))return;
+    const r=await j('/api/uninstall',{method:'POST',body:JSON.stringify({remove_components:rc})});
+    if(!r.ok){alert(r.error||'启动失败');return;}
+    document.getElementById('uninstBox').style.display='block';
+    pollUninstall();
+  }catch(e){alert('操作失败: '+e.message);}
+}
+let _uninstPoll=null;
+function pollUninstall(){
+  if(_uninstPoll)clearInterval(_uninstPoll);
+  _uninstPoll=setInterval(async()=>{
+    try{
+      const u=await j('/api/uninstall');
+      renderUninstall(u,true);
+      if(!u.running){clearInterval(_uninstPoll);_uninstPoll=null;
+        if(u.state==='done'||u.state==='needs_reboot'){alert('卸载完成！DS5Hub 即将退出。'+(u.reboot_required?'\n\n建议重启系统以彻底清除驱动。':''));}}
+    }catch(e){console.error(e);/* 服务停止后请求会失败，属预期 */}
+  },1500);
+}
+function renderUninstall(u,verbose){
+  if(!u)return;
+  const btn=document.getElementById('btnUninstall'),box=document.getElementById('uninstBox');
+  const bar=document.getElementById('uninstBar'),msg=document.getElementById('uninstMsg'),steps=document.getElementById('uninstSteps');
+  const active=u.running||(u.state!=='idle'&&u.state!=='done'&&u.state!=='failed'&&u.state!=='needs_reboot');
+  if(active){box.style.display='block';btn.disabled=true;btn.textContent='⏳ '+(uninstStateLabel[u.state]||u.state);}
+  else{btn.disabled=false;
+    btn.textContent=u.state==='done'||u.state==='needs_reboot'?'✔ 卸载完成':'🗑️ 一键卸载 DS5Hub';}
+  bar.style.width=(u.progress||0)+'%';
+  let m=u.message||'';
+  if(u.error)m+=' — '+u.error;
+  if(u.dry_run)m+='（dry_run 模拟模式）';
+  msg.textContent=m;
+  msg.style.color=u.state==='failed'?'var(--red, #e5484d)':(u.state==='done'||u.state==='needs_reboot')?'var(--green, #30a46c)':'var(--muted)';
+  if(verbose&&u.log&&u.log.length){
+    steps.innerHTML=u.log.slice(-8).map(l=>`<div style="${l.level==='error'?'color:var(--red,#e5484d);':''}">[${esc(l.t)}] ${esc(l.msg)}</div>`).join('');
+    steps.scrollTop=steps.scrollHeight;
+  }
+}
 async function hidePad(padId){try{const res=await j(`/api/hidhide/action/${padId}`,{method:'POST',body:JSON.stringify({action:'check_hide'})});alert(res.message||(res.ok?'隐藏成功':'隐藏失败'));refreshStatus();}catch(e){alert('HidHide 操作失败: '+e.message);}}
 async function quickAction(action){try{if(action==='whitelist'){await j('/api/hidhide/action/global',{method:'POST',body:JSON.stringify({action:'whitelist'})});alert('已添加白名单！');}else if(action==='check_hide'){const s=await j('/api/hidhide/status');alert(`HidHide 状态: ${s.cli_path?'CLI 就绪':'未找到 HidHideCLI'}\n消息: ${s.status?.message||'无'}`);}else if(action==='unhide_all'){await j('/api/hidhide/action/global',{method:'POST',body:JSON.stringify({action:'unhide'})});alert('已取消所有隐藏！');}refreshStatus();}catch(e){alert('操作失败: '+e.message);}}
 

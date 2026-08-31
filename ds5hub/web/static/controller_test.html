@@ -64,6 +64,13 @@ button{font-family:var(--font);cursor:pointer;border:none;outline:none}
 .btn-action{display:block;width:100%;padding:8px 12px;background:var(--border);color:var(--text);border-radius:var(--radius-sm);font-size:13px;font-weight:500;margin-bottom:6px;transition:.12s}
 .btn-action:hover{filter:brightness(1.15);transform:translateY(-1px)}
 .btn-row{display:flex;gap:6px;margin-bottom:6px}.btn-row .btn-action{flex:1;margin:0}
+.btn-action.active{background:var(--blue);color:#fff}
+.btn-action.on{background:rgba(59,130,246,.25);border:1px solid var(--blue)}
+.btn-action.sm{padding:6px 4px;font-size:11px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}
+.stat-cell{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 4px;text-align:center}
+.stat-cell b{display:block;font-size:13px;color:var(--text)}
+.stat-cell span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
 .color-swatch{width:32px;height:32px;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:.12s;display:inline-block;margin:2px}
 .color-swatch:hover,.color-swatch.selected{border-color:white;transform:scale(1.1)}
 .range-wrap{margin-bottom:8px}.range-wrap label{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:4px}
@@ -166,7 +173,7 @@ button{font-family:var(--font);cursor:pointer;border:none;outline:none}
 
 <!-- Triggers -->
 <div class="card">
-<div class="card-title"><span>&#x1F527;</span> 自适应扳机</div>
+<div class="card-title"><span>&#x1F527;</span> 扳机输入 <span style="font-size:9px;font-weight:400;color:var(--muted);letter-spacing:0">（监测）</span></div>
 <div class="triggers-row">
 <div class="trigger-col"><div class="trigger-bar-wrap"><div class="trigger-bar" id="l2Bar" style="height:0%"></div></div><span class="trigger-val" id="l2Val">0%</span><span style="font-size:10px;color:var(--muted)">L2</span></div>
 <div style="display:flex;align-items:center;color:var(--muted);font-size:12px">|</div>
@@ -208,6 +215,26 @@ button{font-family:var(--font);cursor:pointer;border:none;outline:none}
 </div>
 </div>
 
+<!-- Polling Rate -->
+<div class="card">
+<div class="card-title"><span>&#x1F4E1;</span> 轮询率测试 <span style="font-size:9px;font-weight:400;color:var(--muted);letter-spacing:0">Polling Rate</span></div>
+<div style="text-align:center;margin-bottom:6px">
+<div style="font-size:36px;font-weight:800;color:var(--muted);line-height:1" id="pollHzBig">&#x2014;</div>
+<div style="font-size:10px;color:var(--muted);margin-top:2px">Hz &middot; 每秒输入报告数</div>
+</div>
+<div class="stat-grid">
+<div class="stat-cell"><b id="pollAvg">&#x2014;</b><span>均值 ms</span></div>
+<div class="stat-cell"><b id="pollMin">&#x2014;</b><span>最小 ms</span></div>
+<div class="stat-cell"><b id="pollMax">&#x2014;</b><span>最大 ms</span></div>
+<div class="stat-cell"><b id="pollN">0</b><span>样本</span></div>
+</div>
+<div class="btn-row">
+<button class="btn-action" id="btnPollTest" onclick="togglePollTest()">&#x25B6; 开始测试</button>
+<button class="btn-action" onclick="resetPollTest()">&#x21BB; 重置</button>
+</div>
+<div class="text-status" id="pollNote">取最近 2 秒滑动窗口 &middot; 标称 250Hz (USB/蓝牙)</div>
+</div>
+
 <!-- Log -->
 <div class="card">
 <div class="card-title"><span>&#x1F4CB;</span> 输出日志</div>
@@ -235,6 +262,31 @@ button{font-family:var(--font);cursor:pointer;border:none;outline:none}
 <div class="action-group-title">&#x1F4A5; 震动马达</div>
 <div class="btn-row"><button class="btn-action" onclick="doRumble('large')">大马达 ON</button><button class="btn-action" onclick="doRumbleOff()">OFF</button></div>
 <div class="btn-row"><button class="btn-action" onclick="doRumble('small')">小马达 ON</button><button class="btn-action" onclick="doPattern('wave')">波纹</button></div>
+</div>
+<div class="action-group">
+<div class="action-group-title">&#x1F391;&#xFE0F; 自适应扳机效果 <span style="font-size:9px;font-weight:400;color:var(--muted);letter-spacing:0">L2/R2 输出</span></div>
+<div class="btn-row" style="flex-wrap:wrap">
+<button class="btn-action sm" id="trigSideR2" onclick="setTriggerSide('r2')">R2</button>
+<button class="btn-action sm" id="trigSideL2" onclick="setTriggerSide('l2')">L2</button>
+<button class="btn-action sm" id="trigSideBoth" onclick="setTriggerSide('both')">双侧</button>
+</div>
+<div class="btn-row" style="flex-wrap:wrap">
+<button class="btn-action sm" data-fx="rigid" onclick="applyTriggerFx('rigid')">连续阻力</button>
+<button class="btn-action sm" data-fx="vibration" onclick="applyTriggerFx('vibration')">扳机振动</button>
+<button class="btn-action sm" data-fx="weapon" onclick="applyTriggerFx('weapon')">武器单发</button>
+<button class="btn-action sm" data-fx="machine" onclick="applyTriggerFx('machine')">全自动</button>
+<button class="btn-action sm" data-fx="bow" onclick="applyTriggerFx('bow')">弓</button>
+</div>
+<div class="range-wrap"><label><span>力度</span><span id="trigForceVal">200</span></label><input type="range" min="0" max="255" value="200" oninput="onTriggerParam('force',this.value)"></div>
+<div class="range-wrap"><label><span>参数A <span style="color:var(--muted);font-weight:400" id="trigP1Hint">(起始位置)</span></span><span id="trigP1Val">120</span></label><input type="range" min="0" max="255" value="120" oninput="onTriggerParam('p1',this.value)"></div>
+<div class="range-wrap"><label><span>参数B <span style="color:var(--muted);font-weight:400" id="trigP2Hint">(释放位置)</span></span><span id="trigP2Val">80</span></label><input type="range" min="0" max="255" value="80" oninput="onTriggerParam('p2',this.value)"></div>
+<div class="btn-row">
+<button class="btn-action sm" onclick="triggerPreset('machine')">&#x1F52B; 重机枪</button>
+<button class="btn-action sm" onclick="triggerPreset('bow')">&#x1F3F9; 猎弓</button>
+<button class="btn-action sm" onclick="triggerPreset('racket')">&#x1F3D3; 球拍</button>
+</div>
+<div class="btn-row"><button class="btn-action" onclick="allTriggersOff()">&#x26D4; 关闭两侧扳机效果</button></div>
+<div class="text-status" id="trigFxNote">施加效果后按压对应扳机感受阻力反馈</div>
 </div>
 <div class="action-group">
 <div class="action-group-title">&#x1F4A1; 灯效控制</div>
@@ -271,6 +323,19 @@ button{font-family:var(--font);cursor:pointer;border:none;outline:none}
 <script>
 // ============ Global State ============
 let hidDevice=null,isConnected=false,gyroAccelData=null,touches=[],curLR={r:0,g:0,b:255};
+// DualSense 0x31 输出状态（不含 report id 的 47 字节结构）
+let outState={
+  mr:0,ml:0,                       // 右(弱)/左(强) 马达
+  r2:{mode:0,p1:0,p2:0,p3:0,force:0},  // 右扳机 FFB: 效果模式+3参数+力度
+  l2:{mode:0,p1:0,p2:0,p3:0,force:0},  // 左扳机 FFB
+  led:{r:0,g:0,b:255},player:0,bright:0 // 灯条 RGB / 玩家LED位图 / 亮度等级
+};
+let trigCfg={side:'both',fx:'rigid',force:200,p1:120,p2:80};
+// 轮询率测试状态
+let pollTestOn=false,pollSamples=[],pollUiTimer=null;
+const TRIG_FX={off:0x00,rigid:0x02,weapon:0x04,vibration:0x08,squirrel:0x10,machine:0x20,bow:0x40};
+const TRIG_FX_NAME={off:'关闭',rigid:'连续阻力',weapon:'武器单发',vibration:'扳机振动',squirrel:'棘轮',machine:'全自动',bow:'弓'};
+const TRIG_FX_HINT={rigid:['(力度基准)','(微调)'],vibration:['(振动频率)','(幅度包络)'],weapon:['(起始位置)','(释放位置)'],machine:['(振感强度)','(点射节奏)'],bow:['(拉弓起始)','(离弦弹力)'],squirrel:['(棘齿强度)','(细密度)']};
 
 // ============ Connection ============
 async function connectController(){
@@ -290,6 +355,7 @@ async function connectController(){
 
 function disconnectController(){
   if(!hidDevice||!isConnected)return;
+  if(pollTestOn)togglePollTest();
   doRumbleOff();setLightbar(0,0,0);
   hidDevice.removeEventListener('inputreport',onInputReport);
   hidDevice.close().catch(()=>{});
@@ -312,6 +378,7 @@ function updateUI(c){
 
 // ============ Input Report Parsing ============
 function onInputReport(ev){
+  recordPollEvent();
   const buf=new Uint8Array(ev.data.buffer),rid=buf[0],last=buf;
   switch(rid){
     case 0x02:parseGeneral(buf);break;case 0x21:parseAnalogButtons(buf);break;
@@ -320,6 +387,52 @@ function onInputReport(ev){
     case 0x30:parseGyroAccel(buf);break;case 0x31:parseBattery(buf);break;
     default:addLog('收到报告 ID=0x'+rid.toString(16).toUpperCase(),'info');
   }
+}
+
+// ============ Polling Rate Test ============
+function recordPollEvent(){
+  if(!pollTestOn)return;
+  const t=performance.now();
+  pollSamples.push(t);
+  if(pollSamples.length>4000)pollSamples.splice(0,2000);
+}
+function togglePollTest(){
+  pollTestOn=!pollTestOn;
+  const btn=document.getElementById('btnPollTest');
+  if(pollUiTimer){clearInterval(pollUiTimer);pollUiTimer=null}
+  if(pollTestOn){
+    pollSamples=[];
+    btn.innerHTML='&#x23F8; 停止测试';btn.classList.add('on');
+    addLog('轮询率测试开始 (2s 滑动窗口)','info');
+    pollUiTimer=setInterval(updatePollUI,500);
+  }else{
+    btn.innerHTML='&#x25B6; 开始测试';btn.classList.remove('on');
+    updatePollUI();addLog('轮询率测试停止','warn');
+  }
+}
+function resetPollTest(){pollSamples=[];updatePollUI()}
+function pollStats(){
+  const now=performance.now();
+  const win=pollSamples.filter(t=>now-t<=2000);
+  if(win.length<5)return null;
+  const span=win[win.length-1]-win[0];
+  const hz=span>0?(win.length-1)/(span/1000):0;
+  let dMin=1e9,dMax=0,dSum=0;
+  for(let i=1;i<win.length;i++){const d=win[i]-win[i-1];if(d<dMin)dMin=d;if(d>dMax)dMax=d;dSum+=d}
+  return{hz,avg:dSum/(win.length-1),min:dMin,max:dMax,n:win.length};
+}
+function updatePollUI(){
+  const big=document.getElementById('pollHzBig');
+  const s=pollStats();
+  if(!pollTestOn||!s){big.textContent='\u2014';big.style.color='var(--muted)';return}
+  document.getElementById('pollAvg').textContent=s.avg?s.avg.toFixed(1):'\u2014';
+  document.getElementById('pollMin').textContent=s.min?s.min.toFixed(1):'\u2014';
+  document.getElementById('pollMax').textContent=s.max?s.max.toFixed(1):'\u2014';
+  document.getElementById('pollN').textContent=s.n;
+  big.textContent=Math.round(s.hz);
+  big.style.color=s.hz>=200?'var(--green)':s.hz>=100?'var(--yellow)':'var(--red)';
+  document.getElementById('pollNote').textContent='取最近 2 秒滑动窗口 · '+
+    (s.hz>=240?'达标的标称速率 (250Hz)':s.hz>=150?'略低于标称 (蓝牙节能常见)':s.hz>=80?'明显偏低, 检查连接/省电设置':'异常低速, 疑似连接问题');
 }
 
 function parseGeneral(b){
@@ -416,40 +529,107 @@ function paintTouchCanvas(pts){
     ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.strokeStyle='#3b82f6';ctx.lineWidth=2;ctx.stroke()});
 }
 
-// ============ Output Reports ============
-function sendFeatureReport(rid,data){
-  if(!hidDevice||!isConnected)return false;
-  try{hidDevice.sendFeatureReport(rid,new Uint8Array(data));return true}catch(e){addLog('输出报告失败: '+e.message,'error');return false}
-}
-function sendOutputReport(rid,data){
-  if(!hidDevice||!isConnected)return false;
-  try{hidDevice.sendReport(rid,new Uint8Array(data));return true}catch(e){addLog('输出报告失败: '+e.message,'error');return false}
+// ============ Output Reports (DualSense 标准 0x31 报告, 47 字节) ============
+// 布局: [0]valid_flag0 [1]valid_flag1 [2]右马达 [3]左马达 [4]mute_led [5]power_save
+//       [6..10] R2 FFB: 模式/参数A/参数B/参数C/力度  [11..15] L2 FFB
+//       [35]valid_flag2 [36]lightbar_setup [37]亮度 [38]玩家LED [40..42] RGB
+function sendHidOutput(){
+  if(!hidDevice||!isConnected)return;
+  const d=new Uint8Array(47);
+  d[0]=0x03;               // valid_flag0: 左右马达有效
+  d[1]=0x0C;               // valid_flag1: 右/左扳机 FFB 有效
+  d[2]=outState.mr;d[3]=outState.ml;
+  d[6]=outState.r2.mode;d[7]=outState.r2.p1;d[8]=outState.r2.p2;d[9]=outState.r2.p3;d[10]=outState.r2.force;
+  d[11]=outState.l2.mode;d[12]=outState.l2.p1;d[13]=outState.l2.p2;d[14]=outState.l2.p3;d[15]=outState.l2.force;
+  d[35]=0x04;              // valid_flag2: 更新灯条
+  d[37]=outState.bright;   // 0=高亮 1=中 2=低
+  d[38]=outState.player;
+  d[40]=outState.led.r;d[41]=outState.led.g;d[42]=outState.led.b;
+  try{hidDevice.sendReport(0x31,d)}catch(e){addLog('输出报告失败: '+e.message,'error')}
 }
 
-// Rumble
+// ---- 自适应扳机效果 ----
+const SIDE_NAME={r2:'R2',l2:'L2',both:'双侧'};
+function setTriggerSide(s){trigCfg.side=s;markTriggerSide();applyTriggerState();addLog('扳机作用侧: '+SIDE_NAME[s],'info')}
+function markTriggerSide(){
+  const m={r2:'trigSideR2',l2:'trigSideL2',both:'trigSideBoth'};
+  Object.entries(m).forEach(([k,id])=>{const e=document.getElementById(id);if(e)e.classList.toggle('active',trigCfg.side===k)});
+}
+function applyTriggerFx(fx){trigCfg.fx=fx;markTriggerFx();updateTrigHints();applyTriggerState();
+  addLog('自适应扳机: '+TRIG_FX_NAME[fx]+' \u2192 '+SIDE_NAME[trigCfg.side],'success')}
+function markTriggerFx(){document.querySelectorAll('[data-fx]').forEach(e=>e.classList.toggle('on',e.dataset.fx===trigCfg.fx))}
+function updateTrigHints(){
+  const h=TRIG_FX_HINT[trigCfg.fx]||['(参数A)','(参数B)'];
+  const a=document.getElementById('trigP1Hint'),b=document.getElementById('trigP2Hint');
+  if(a)a.textContent=h[0];if(b)b.textContent=h[1];
+}
+function onTriggerParam(k,v){v=+v;trigCfg[k]=v;
+  document.getElementById({force:'trigForceVal',p1:'trigP1Val',p2:'trigP2Val'}[k]).textContent=v;
+  applyTriggerState();
+}
+function applyTriggerState(){
+  const blank={mode:0,p1:0,p2:0,p3:0,force:0};
+  const active=trigCfg.fx!=='off';
+  const pack=()=>({...blank,mode:TRIG_FX[trigCfg.fx]||0,p1:trigCfg.p1,p2:trigCfg.p2,force:trigCfg.force});
+  outState.r2=active&&trigCfg.side!=='l2'?pack():{...blank};
+  outState.l2=active&&trigCfg.side!=='r2'?pack():{...blank};
+  sendHidOutput();
+}
+function allTriggersOff(){
+  outState.r2={mode:0,p1:0,p2:0,p3:0,force:0};outState.l2={mode:0,p1:0,p2:0,p3:0,force:0};
+  trigCfg.fx='off';markTriggerFx();sendHidOutput();addLog('已关闭两侧扳机效果','warn');
+}
+function triggerPreset(name){
+  const P={
+    machine:{fx:'machine',force:180,p1:90,p2:40},
+    bow:{fx:'bow',force:220,p1:40,p2:230},
+    racket:{fx:'rigid',force:150,p1:0,p2:0}
+  }[name];if(!P)return;
+  trigCfg.fx=P.fx;trigCfg.force=P.force;trigCfg.p1=P.p1;trigCfg.p2=P.p2;
+  setSlider('trigForce',P.force);setSlider('trigP1',P.p1);setSlider('trigP2',P.p2);
+  document.getElementById('trigForceVal').textContent=P.force;
+  document.getElementById('trigP1Val').textContent=P.p1;
+  document.getElementById('trigP2Val').textContent=P.p2;
+  markTriggerFx();updateTrigHints();applyTriggerState();
+  addLog('扳机预设: '+{machine:'重机枪',bow:'猎弓',racket:'球拍'}[name],'success');
+}
+function setSlider(id,v){const s=document.getElementById(id);if(s)s.value=v}
+
+// ---- 震动马达 ----
+let rumbleIv=null;
+function startRumbleLoop(){
+  stopRumbleLoop();sendHidOutput();
+  rumbleIv=setInterval(()=>{if(outState.mr||outState.ml)sendHidOutput();else stopRumbleLoop()},50);
+}
+function stopRumbleLoop(){if(rumbleIv){clearInterval(rumbleIv);rumbleIv=null}}
 function doRumble(type){
-  const li=type==='large'?[0xFF,0xFF]:[0x00,0x00],si=type==='small'?[0xFF,0xFF]:[0x00,0x00];
-  sendOutputReport(0x10,[0x10,0x01,...li,...si]);
-  addLog(type==='large'?'\u5927\u9A6C\u8FBE':'\u5C0F\u9A6C\u8FBE'+'\u9707\u52A8 ON','success');
+  if(type==='large'){outState.ml=255;outState.mr=0}else{outState.mr=255;outState.ml=0}
+  startRumbleLoop();
+  addLog((type==='large'?'\u5927':'\u5C0F')+'\u9A6C\u8FBE\u9707\u52A8 ON (\u6301\u7EED)','success');
 }
-function doRumbleOff(){sendOutputReport(0x10,[0x10,0x00])}
+function doRumbleOff(){outState.mr=0;outState.ml=0;stopRumbleLoop();sendHidOutput()}
 function doPattern(pat){
-  if(pat==='wave'){let s=0;const iv=setInterval(()=>{
-    if(!isConnected||pat!=='wave'){clearInterval(iv);doRumbleOff();return}
-    const t=s/10,int=Math.floor(Math.sin(t*Math.PI*2)*200+55);
-    sendOutputReport(0x10,[0x10,0x01,0xFF,int,0xFF,int]);s++;
-  },50);setTimeout(()=>{clearInterval(iv);doRumbleOff()},2000);
-  addLog('\u6CE2\u7EB9\u6A21\u5F0F\u9707\u52A8(2\u79D2)','success')}
+  if(pat!=='wave')return;
+  let s=0;const iv=setInterval(()=>{
+    if(!isConnected){clearInterval(iv);return}
+    const t=s/10,a=Math.floor(Math.sin(t*Math.PI*2)*200+55);
+    outState.mr=a;outState.ml=a;sendHidOutput();
+    if(++s>20){clearInterval(iv);outState.mr=0;outState.ml=0;sendHidOutput()}
+  },100);
+  addLog('\u6CE2\u7EB9\u6A21\u5F0F\u9707\u52A8(2\u79D2)','success');
 }
 
-// Lightbar
-function setLightbar(r,g,b){curLR={r,g,b};sendFeatureReport(0x30,[0x30,0x02,r,g,b]);addLog('\u706F\u6548 RGB('+r+','+g+','+b+')','info')}
-function setBrightness(v){document.getElementById('brightnessVal').textContent=v+'%';
-  const br=v/100;setLightbar(Math.round(curLR.r*br),Math.round(curLR.g*br),Math.round(curLR.b*br))}
+// ---- 灯条 ----
+function setLightbar(r,g,b){curLR={r,g,b};outState.led={r,g,b};sendHidOutput();addLog('\u706F\u6548 RGB('+r+','+g+','+b+')','info')}
+function setBrightness(v){
+  document.getElementById('brightnessVal').textContent=v+'%';
+  outState.bright=v>66?0:v>33?1:2;
+  sendHidOutput();
+}
 function setBreathing(v){document.getElementById('breathRateVal').textContent=v<3?'\u6162\u901F':v<7?'\u4E2D\u7B49':'\u5FEB\u901F'}
 
-// Player LEDs
-function setPlayerLed(n){const m={1:0x01,2:0x02,3:0x04,4:0x08,0:0x00};sendFeatureReport(0x30,[0x30,0x03,m[n]||0]);addLog('\u73A9\u5BB6 LED '+n,'info')}
+// ---- 玩家 LED ----
+function setPlayerLed(n){const m={1:0x01,2:0x02,3:0x04,4:0x08,0:0x00};outState.player=m[n]||0;sendHidOutput();addLog('\u73A9\u5BB6 LED '+n,'info')}
 
 // Factory Info
 function readFactoryInfo(){
@@ -473,9 +653,13 @@ function testOutputAll(){
     // Step 2: Rumble large 300ms
     doRumble('large');
     setTimeout(()=>{doRumbleOff();
+      // Step 2.5: R2 刚性阻力 (自适应扳机 0x31 FFB)
+      outState.r2={mode:0x02,p1:0,p2:0,p3:0,force:180};sendHidOutput();
       // Step 3: Set player LED 1
       setPlayerLed(1);
       setTimeout(()=>{
+        // 关闭扳机效果
+        outState.r2={mode:0,p1:0,p2:0,p3:0,force:0};sendHidOutput();
         // Step 4: Set red lightbar
         setLightbar(255,0,0);
         setTimeout(()=>{

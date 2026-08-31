@@ -12,7 +12,7 @@ from ds5hub.logger import init
 
 cfg = Config()
 init(level="INFO", ring_size=500)
-app = DS5HubApp(config=cfg, simulated=True)
+app = DS5HubApp(config=cfg)
 api = create_app(app)
 client = TestClient(api)
 

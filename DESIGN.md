@@ -11,14 +11,16 @@
 3. 常驻托盘，开机自启。Web 管理界面 http://127.0.0.1:8080（可配置、可局域网访问）。
 4. Web 界面显示所有手柄（名称/VID/PID/连接方式/状态）。一键"连接"→ 该手柄经
    标准 usbip 协议暴露；HidHide 自动隐藏真实手柄防双重输入，白名单放行本程序。
-5. 客户端（本机 usbipd-win / Linux usbip / 远程主机）可 attach 任意手柄。
+5. 单机回环为主场景：本机 usbipd-win（usbip 客户端 + vhci 驱动）attach 本机
+   服务端口，Windows 侧出现完整功能虚拟 DualSense（自适应扳机/触觉/灯效）；
+   Linux usbip / 远程主机 attach 为扩展场景。
 6. 手柄断开自动重连；客户端断线自动清理；全程日志可查。
 
 ## 二、组件清单
 
 | 组件 | 说明 | 依赖 |
 |---|---|---|
-| pad_manager.py | 多手柄枚举/管理 + SimulatedPad 桩 | hidapi (可选) |
+| pad_manager.py | 多手柄枚举/管理 | hidapi (可选) |
 | hid_pad.py | 真实 hidapi 手柄适配（M2） | hidapi |
 | usbip_protocol.py | usbip 1.0 协议编解码（纯逻辑） | 无 |
 | usbip_server.py | 每手柄一个 TCP 服务端口，处理 URB | 协议模块 |
@@ -79,9 +81,10 @@
 
 ## 九、开发机（无驱动）测试策略
 
-- pad_manager 提供 `SimulatedPad` 桩：伪造手柄枚举/报告读写，用于开发机测试
-- hid_pad.py 在检测到 hidapi 不可用时自动降级为 SimulatedPad
-- usbip 协议与多客户端逻辑与驱动无关，可完整测试（含模拟客户端场景脚本）
+- 模拟配置已移除（SimulatedPad / --simulated / demo.pad_count 均已删除）：
+  手柄一律通过 hidapi 真实枚举，无手柄时 pads 为空列表，mode 恒为 "real"
+- 开发机测试通过 Web API 错误路径（未知 pad_id）与 usbip 协议脚本
+  （mock_usbip_client.py 纯协议层）覆盖，不伪造手柄设备
 - HidHide/驱动安装逻辑只做"检测+引导"路径测试，真实安装留目标机
 
 ## 十、里程碑

@@ -5,7 +5,7 @@ DS5Hub 核心服务协调器：把配置、日志、手柄管理、usbip 服务�
 M2 增强：
 - HidHide 自动化检测与设备隐藏
 - 自动重连策略（指数退避）
-- 真实 hidapi 手柄枚举（开发机无库时回退模拟桩）
+- 真实 hidapi 手柄枚举（无手柄时保持真实模式，手柄列表为空）
 - 手柄/客户端两层故障恢复
 """
 from __future__ import annotations
@@ -18,33 +18,23 @@ from . import logger
 from .config import Config
 from .hid_pad import HidPadManager, enumerate_ds5_pads, HidPad
 from .pad_manager import (
-    AbstractPadDevice, PadManager, PadInfo, default_simulated_pads,
-    PadState, PadSlot, SimulatedPad
+    AbstractPadDevice, PadManager, PadInfo,
+    PadState, PadSlot
 )
 from .reconnect import AutoReconnector, ReconnectPolicy
 from .usbip_server import PadUsbipServer
 
 
 class DS5HubApp:
-    def __init__(self, config: Config | None = None, simulated: bool = False):
+    def __init__(self, config: Config | None = None):
         self.cfg = config or Config()
-        self.simulated = simulated
-        
-        # ---- 手柄管理器 ----
-        if simulated:
-            self.pads = default_simulated_pads(count=self.cfg.get("demo.pad_count", 2))
-            self._real_hid_mgr = None
-        else:
-            # 目标机：尝试 hidapi 枚举，失败回退模拟桩
-            self._real_hid_mgr = HidPadManager()
-            pads_found = self._real_hid_mgr.scan()
-            if not pads_found:
-                logger.warn("未发现真实 DualSense 手柄，回退到模拟模式")
-                self.simulated = True
-                self.pads = default_simulated_pads(1)
-                self._real_hid_mgr = None
-            else:
-                self.pads = self._real_hid_mgr
+
+        # ---- 手柄管理器（仅真实 hidapi 枚举）----
+        self._real_hid_mgr = HidPadManager()
+        pads_found = self._real_hid_mgr.scan()
+        if not pads_found:
+            logger.warn("未发现真实 DualSense 手柄（真实模式，无模拟回退）")
+        self.pads = self._real_hid_mgr
         
         # ---- usbip 服务端口映射 ----
         self.servers: Dict[str, PadUsbipServer] = {}
@@ -62,6 +52,23 @@ class DS5HubApp:
         
         # ---- HidHide 管理器 ----
         self._hidhide = self._init_hidhide()
+
+        # ---- 一键环境部署编排器 ----
+        from .install_orchestrator import InstallOrchestrator
+        self.orchestrator = InstallOrchestrator(
+            self.cfg, dry_run=bool(self.cfg.get("orchestrator.dry_run", False)))
+
+        # ---- 一键卸载编排器 ----
+        from .uninstall_orchestrator import UninstallOrchestrator
+        self.uninstaller = UninstallOrchestrator(
+            self.cfg, stop_callback=self.stop,
+            dry_run=bool(self.cfg.get("orchestrator.dry_run", False)))
+
+        # ---- 自动本机 attach ----
+        self._running = False
+        self._attach_attempted: set = set()      # 已尝试 attach 的 pad_id
+        self._attach_results: Dict[str, dict] = {}
+        self._attach_thread: Optional[threading.Thread] = None
     
     def _init_hidhide(self):
         """初始化 HidHide 管理器（目标机可用时）。"""
@@ -110,9 +117,15 @@ class DS5HubApp:
         
         self._start_servers()
         self.reconnector.start()
-        
+
+        # 自动本机 attach 线程
+        self._running = True
+        self._attach_thread = threading.Thread(
+            target=self._auto_attach_loop, daemon=True, name="ds5hub-auto-attach")
+        self._attach_thread.start()
+
         # 尝试隐藏真实手柄（目标机）
-        if not self.simulated and self.hidhide_cli:
+        if self.hidhide_cli:
             for slot in self.pads.list():
                 vid_hex = f"{slot.info.vid:04x}"
                 pid_hex = f"{slot.info.pid:04x}"
@@ -161,7 +174,7 @@ class DS5HubApp:
             
             return {
                 "status": "running",
-                "mode": "simulated" if self.simulated else "real",
+                "mode": "real",
                 "pads": pads,
                 "config": self.cfg.all(),
                 "log_level": logger.get().get_level(),
@@ -171,6 +184,9 @@ class DS5HubApp:
                 },
                 "hidhide": self.hidhide_status,
                 "components": comps,
+                "orchestrator": self.orchestrator.status(),
+                "uninstaller": self.uninstaller.status(),
+                "attach": self.attach_status(),
             }
     
     def set_pad_state(self, pad_id: str, action: str) -> dict:
@@ -250,10 +266,78 @@ class DS5HubApp:
             return output
         except Exception as e:
             return {"error": str(e)}
+
+    # ---- 自动本机 attach（usbip 回环）----
+    def _auto_attach_loop(self) -> None:
+        logger.info("[attach] 自动 attach 线程启动")
+        interval = float(self.cfg.get("orchestrator.attach_interval", 3.0))
+        while self._running:
+            try:
+                self._auto_attach_once()
+            except Exception as e:  # noqa: BLE001
+                logger.debug(f"[attach] 扫描异常: {e}")
+            time.sleep(max(1.0, interval))
+        logger.info("[attach] 自动 attach 线程退出")
+
+    def _auto_attach_once(self) -> None:
+        """扫描 EXPOSED 且服务在线的手柄，逐个 attach（每 pad 只自动尝试一次）。"""
+        if not self.cfg.get("orchestrator.auto_attach", True):
+            return
+        candidates = []
+        with self._lock:
+            for slot in self.pads.list():
+                if slot.pad_id in self._attach_attempted:
+                    continue
+                if slot.pad_id in self.servers and slot.state.value in ("exposed", "ready"):
+                    candidates.append(slot)
+        if not candidates:
+            return
+        from .install_orchestrator import find_usbip_cli
+        if not find_usbip_cli():
+            return  # usbip 客户端未就绪（环境未部署），静默等待
+        for slot in candidates:
+            self._attach_attempted.add(slot.info.pad_id)
+            result = self.attach_pad(slot.info.pad_id)
+            self._attach_results[slot.info.pad_id] = result
+            logger.info(
+                f"[attach] {slot.info.name}: "
+                f"{'成功' if result.get('ok') else '失败 - ' + result.get('error', '')}")
+
+    def attach_pad(self, pad_id: str) -> dict:
+        """对本机 attach 一个手柄（usbip 回环，虚拟设备直插系统）。"""
+        slot = self.pads.get(pad_id)
+        if not slot:
+            return {"ok": False, "error": "pad not found"}
+        if pad_id not in self.servers:
+            return {"ok": False, "error": "手柄 usbip 服务未运行"}
+        from .install_orchestrator import find_usbip_cli, run_elevated
+        usbip = find_usbip_cli()
+        if not usbip:
+            return {"ok": False, "error": "usbip 客户端不可用（请先完成环境部署）"}
+        host = "127.0.0.1"
+        port = int(slot.port or self.cfg.get("usbip_base_port", 3240))
+        args = ["attach", "--remote", host, "--busid", slot.busid]
+        if port != 3240:  # 非标准端口才需要显式指定
+            args += ["--tcpport", str(port)]
+        code, out = run_elevated(usbip, args, timeout=60)
+        ok = code == 0
+        result = {"ok": ok, "busid": slot.busid, "port": port, "output": out}
+        self._attach_results[pad_id] = result
+        if ok:
+            logger.info(f"[attach] 已 attach {slot.info.name} (busid {slot.busid})")
+        else:
+            logger.warn(f"[attach] attach 失败 {slot.info.name}: {out}")
+        return result
+
+    def attach_status(self) -> dict:
+        return {"auto": bool(self.cfg.get("orchestrator.auto_attach", True)),
+                "attempted": sorted(self._attach_attempted),
+                "results": dict(self._attach_results)}
     
     # ---- 关闭 ----
     def stop(self) -> None:
         logger.info("DS5Hub 停止")
+        self._running = False
         self.reconnector.stop()
         
         # 取消隐藏所有设备

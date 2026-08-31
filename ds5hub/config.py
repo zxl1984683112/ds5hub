@@ -34,7 +34,7 @@ _DEFAULTS = {
     "web_token": "",                       # Bearer token，空=不鉴权
 
     # ---- 手柄 ----
-    "demo.pad_count": 2,                   # 模拟模式手柄数量
+    # （模拟模式已移除，手柄一律通过 hidapi 真实枚举）
 
     # ---- 自动重连 ----
     "reconnect.enabled": True,
@@ -46,6 +46,11 @@ _DEFAULTS = {
     # ---- HidHide ----
     "hidhide.auto_whitelist": True,        # 启动时自动白名单
     "hidhide.auto_hide": True,             # 启动时自动隐藏设备
+
+    # ---- 一键环境部署 ----
+    "orchestrator.dry_run": False,         # True=模拟安装流程（开发机零驱动测试）
+    "orchestrator.auto_attach": True,      # 部署完成后自动对本机 attach 手柄
+    "orchestrator.attach_interval": 3.0,   # 自动 attach 扫描间隔（秒）
 
     # ---- 托盘 ----
     "tray.icon_path": "",                  # 自定义图标路径，空=程序内置

@@ -12,26 +12,30 @@ logger.init(level="DEBUG")
 from ds5hub.app import DS5HubApp
 from ds5hub.web_api import create_app
 
-app = DS5HubApp(simulated=True)
+app = DS5HubApp()
 app.start()
 client = TestClient(create_app(app))
 
-# 1. 状态
+# 1. 状态（真实模式：无手柄时 pads 为空列表）
 r = client.get("/api/status")
 assert r.status_code == 200, r.text
 s = r.json()
 print("status ok:", s["status"], "mode:", s["mode"], "pads:", len(s["pads"]))
-assert len(s["pads"]) >= 1
+assert s["mode"] == "real", "模拟配置应已移除, mode 必须为 real"
+assert isinstance(s["pads"], list)
 
-# 2. 手柄连接
-pad = s["pads"][0]
-r = client.post(f"/api/pads/{pad['pad_id']}/action", json={"action": "connect"})
-print("connect:", r.json())
-assert r.json()["ok"] is True
-
-# 3. 断开
-r = client.post(f"/api/pads/{pad['pad_id']}/action", json={"action": "disconnect"})
-print("disconnect:", r.json())
+# 2. 手柄操作：有手柄走成功路径，无手柄验证错误路径
+if s["pads"]:
+    pad = s["pads"][0]
+    r = client.post(f"/api/pads/{pad['pad_id']}/action", json={"action": "connect"})
+    print("connect:", r.json())
+    assert r.json()["ok"] is True
+    r = client.post(f"/api/pads/{pad['pad_id']}/action", json={"action": "disconnect"})
+    print("disconnect:", r.json())
+else:
+    r = client.post("/api/pads/no-such-pad/action", json={"action": "connect"})
+    print("no pads (real mode), unknown pad connect:", r.json())
+    assert r.json().get("ok") is False
 
 # 4. 日志
 r = client.get("/api/logs?limit=20")

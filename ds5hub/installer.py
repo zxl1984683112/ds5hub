@@ -3,8 +3,13 @@
 目标机组件安装引导：检测并引导安装必要的外部组件。
 
 当前支持：
-1. HidHide 驱动——用于隐藏真实手柄，仅让本程序可见
-2. usbipd-win——USB/IP 服务端（可选，DS5Hub 自带服务端但可能需要 VHCI）
+1. HidHide 驱动——隐藏真实手柄（必需：本机游戏场景防止物理手柄双重输入）
+2. usbipd-win——提供本机 usbip 客户端 + vhci 虚拟主机控制器驱动
+   （必需：DS5Hub 自带 usbip 服务端，但单机回环 attach 需要客户端与 vhci）
+
+架构说明：服务端与客户端运行在同一台主机（回环）——
+物理 DualSense → HidHide 隐藏 → DS5Hub hidapi 读取 → usbip 服务端(localhost:3240+N)
+→ usbipd-win 客户端 attach → Windows 出现完整功能的虚拟 DualSense → 游戏全功能识别。
 
 注意：本模块只做检测和引导，不执行实际安装操作（需要用户手动确认）。
 """
@@ -127,7 +132,7 @@ class ComponentDetector:
     # ---- usbipd-win 检测 ----
     @staticmethod
     def check_usbipd_win() -> ComponentCheck:
-        """检查 usbipd-win 是否已安装。"""
+        """检查 usbipd-win 是否已安装（本机回环 attach 的 usbip 客户端 + vhci 驱动来源）。"""
         try:
             out = subprocess.run(
                 ["where", "usbipd"],
@@ -137,18 +142,18 @@ class ComponentDetector:
                 return ComponentCheck(
                     name="usbipd-win",
                     status=ComponentStatus.INSTALLED,
-                    message="usbipd-win 已安装",
-                    required=False,
+                    message="usbipd-win 已安装（usbip 客户端 + vhci 驱动）",
+                    required=True,
                 )
         except Exception:
             pass
-        
+
         return ComponentCheck(
             name="usbipd-win",
             status=ComponentStatus.MISSING,
-            message="未发现 usbipd-win（可选依赖）",
+            message="未发现 usbipd-win（本机 attach 虚拟手柄必需，提供 usbip 客户端与 vhci 驱动）",
             install_url="https://github.com/dorssel/usbipd-win/releases",
-            required=False,
+            required=True,
         )
     
     # ---- Python 环境检测 ----

@@ -2,7 +2,7 @@
 """
 真实 DualSense 手柄 hidapi 适配：枚举、打开/关闭、读写报告。
 
-开发机无 hidapi 时自动降级到 SimulatedPad；目标机使用实际 hidapi。
+无 hidapi 库时枚举结果为空（保持真实模式，无模拟回退）。
 
 支持 USB 有线与蓝牙无线双模接入（通过 hidapi 统一接口）。
 """
@@ -44,7 +44,7 @@ _DUALSENSE_NAME_KEYWORDS = ("dualsense", "wireless controller", "playstation")
 
 def enumerate_ds5_pads() -> List[HidDeviceEntry]:
     """枚举所有 DualSense 手柄（USB + Bluetooth）。"""
-    results: List[HidDevice_entry] = []
+    results: List[HidDeviceEntry] = []
     if not _HIDAPI_AVAILABLE:
         return results
     try:
@@ -235,25 +235,16 @@ class HidPadManager:
 
 
 def _create_pad_manager() -> object:
-    """创建 PadManager，有 hidapi 则用 HidPad，否则回退到 SimulatedPad。"""
+    """创建 PadManager：有 hidapi 时用 HidPad 工厂；无 hidapi 时空管理器。"""
     from .pad_manager import PadManager
 
     if _HIDAPI_AVAILABLE:
         def factory(pad_id: str):
-            mgr = PadManager(factory=factory)
-            # 先查有没有已经注册的 info
-            slot = None
+            # 查找已注册槽位信息，构造真实 HidPad；查不到则无设备
             for s in _registered_slots.values():
                 if s["pad_id"] == pad_id:
-                    slot = s
-                    break
-            if slot:
-                return HidPad(slot["info"])
-            # fallback simulated
-            return HidPad(PadInfo(
-                pad_id=pad_id, name="Unknown DS5",
-                vid=_DUALSENSE_VID, pid=_DUALSENSE_USB_PID,
-                connection="usb"))
+                    return HidPad(s["info"])
+            return None
         mgr = PadManager(factory=factory)
     else:
         mgr = PadManager()
