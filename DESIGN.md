@@ -77,7 +77,7 @@
 
 - PyInstaller --onefile --noconsole，产物 ds5hub.exe
 - 组件包（HidHide，usbipd-win）以资源形式内置，首次运行引导安装
-- 打包命令：`pyinstaller build.spec`
+- 打包命令：`pyinstaller --clean --noconfirm ds5hub.spec`
 
 ## 九、开发机（无驱动）测试策略
 
@@ -103,7 +103,7 @@
 
 ### M3 📋（进行中）
 - ✅ 组件检测器（HidHide/usbipd-win/Python 环境）
-- ✅ PyInstaller 打包配置 (build.py)
+- ✅ PyInstaller 打包配置 (ds5hub.spec，单文件 + 内嵌 redist 驱动)
 - ✅ 命令行工具（--detect/--pack）
 - ⏳ 完整 URB 转发实测
 - ⏳ 用户文档完善

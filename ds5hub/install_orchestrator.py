@@ -46,10 +46,25 @@ class OrchState(str, Enum):
     FAILED = "failed"
 
 
-# 官方组件元数据：repo / release asset 名前缀 / 后缀
+# 官方组件元数据。
+# kind: "msi" = msiexec /qn 静默安装；"exe" = 官方 GUI 安装器（无静默参数，
+#       实测 HidHide_*.exe 为自定义 setup，asInvoker 且不含 /quiet /silent，
+#       采用"启动安装器 + 轮询检测就绪"的引导式安装）。
 _OFFICIAL = {
-    "hidhide": {"repo": "nefarius/HidHide", "prefix": "HidHideMSI", "suffix": ".msi"},
-    "usbipd": {"repo": "dorssel/usbipd-win", "prefix": "usbipd-win_", "suffix": ".msi"},
+    "hidhide": {
+        "kind": "exe",
+        "repo": "nefarius/HidHide",
+        "asset": "HidHide_",      # 资产名前缀
+        "suffix": "_x64.exe",      # 精确匹配 x64
+        "display": "HidHide",
+    },
+    "usbipd": {
+        "kind": "msi",
+        "repo": "dorssel/usbipd-win",
+        "asset": "usbipd-win_",
+        "suffix": "_x64.msi",
+        "display": "usbipd-win",
+    },
 }
 
 MSIEXEC_EXIT_OK = 0
@@ -190,28 +205,35 @@ class InstallOrchestrator:
 
             # Step 1: 准备安装包
             self._set(OrchState.PREPARING, 5, "获取官方安装包…")
-            msi: Dict[str, Path] = {}
+            installers: Dict[str, Path] = {}
             for key in _OFFICIAL:
-                p = self._prepare_msi(key)
+                p = self._prepare_installer(key)
                 if not p:
                     raise RuntimeError(
                         f"{key} 安装包获取失败；可手动下载放入 redist 目录")
-                msi[key] = p
+                installers[key] = p
                 self._log(f"安装包就绪: {key} -> {p.name}")
 
-            # Step 2: 静默安装（一次 UAC）
-            self._set(OrchState.INSTALLING, 15, "静默安装组件（请在 UAC 弹窗中确认）…")
-            for i, (key, path) in enumerate(msi.items()):
-                self._log(f"安装 {key}: msiexec /qn /norestart")
-                code = self._msi_install_elevated(path)
-                self._log(f"{key} msiexec 退出码 {code}")
-                if code == MSIEXEC_EXIT_REBOOT:
-                    self.reboot_required = True
-                elif code != MSIEXEC_EXIT_OK:
-                    raise RuntimeError(f"{key} 安装失败（msiexec 退出码 {code}）")
-                self.installed[key] = True
+            # Step 2: 安装（msi 静默 / exe 引导式）
+            self._set(OrchState.INSTALLING, 15, "安装组件…")
+            for i, (key, path) in enumerate(installers.items()):
+                kind = _OFFICIAL[key]["kind"]
+                if kind == "msi":
+                    self._log(f"安装 {key}: msiexec /qn /norestart")
+                    code = self._msi_install_elevated(path)
+                    self._log(f"{key} msiexec 退出码 {code}")
+                    if code == MSIEXEC_EXIT_REBOOT:
+                        self.reboot_required = True
+                    elif code != MSIEXEC_EXIT_OK:
+                        raise RuntimeError(f"{key} 安装失败（msiexec 退出码 {code}）")
+                    self.installed[key] = True
+                else:  # exe 引导式安装（官方安装器无静默参数）
+                    ok = self._exe_install_guided(key, path)
+                    if not ok:
+                        raise RuntimeError(f"{key} 安装未在限时内完成")
+                    self.installed[key] = True
                 self._set(OrchState.INSTALLING,
-                          15 + int(35 * (i + 1) / len(msi)),
+                          15 + int(35 * (i + 1) / len(installers)),
                           f"{key} 安装完成")
 
             # Step 3: 就绪验证
@@ -269,20 +291,23 @@ class InstallOrchestrator:
             fallback = Path(".")
         return fallback
 
-    def _prepare_msi(self, key: str) -> Optional[Path]:
+    def _prepare_installer(self, key: str) -> Optional[Path]:
         spec = _OFFICIAL[key]
         d = self._redist_dir()
-        # 已有官方 msi（前缀匹配）
+        suffix = spec["suffix"]
+        # 已有官方安装包（资产前缀 + 后缀精确匹配）
         try:
-            for f in sorted(d.glob("*.msi"), reverse=True):
-                if f.name.startswith(spec["prefix"]):
+            for f in sorted(d.iterdir(), reverse=True):
+                if not f.is_file():
+                    continue
+                if f.name.startswith(spec["asset"]) and f.name.endswith(suffix):
                     self._log(f"使用本地安装包: {f}")
                     return f
         except Exception:  # noqa: BLE001
             pass
         if self.dry_run:
             # 占位文件（_dryrun_ 前缀避免被后续真实运行误用）
-            fake = d / f"_dryrun_{key}.msi"
+            fake = d / f"_dryrun_{key}{suffix}"
             try:
                 fake.write_bytes(b"dry-run-placeholder")
             except Exception:  # noqa: BLE001
@@ -292,7 +317,7 @@ class InstallOrchestrator:
         try:
             url = self._gh_latest_asset(spec)
             if not url:
-                self._log(f"{key}: 未能解析最新 release 的 msi 资产", "warn")
+                self._log(f"{key}: 未能解析最新 release 的安装资产", "warn")
                 return None
             dest = d / url.split("/")[-1]
             self._log(f"下载 {key}: {url}")
@@ -312,7 +337,7 @@ class InstallOrchestrator:
             data = json.load(r)
         for a in data.get("assets", []):
             n = a.get("name", "")
-            if n.startswith(spec["prefix"]) and n.endswith(spec["suffix"]):
+            if n.startswith(spec["asset"]) and n.endswith(spec["suffix"]):
                 return a.get("browser_download_url")
         return None
 
@@ -330,6 +355,54 @@ class InstallOrchestrator:
             "msiexec.exe",
             ["/i", str(msi_path), "/qn", "/norestart"], timeout=900)
         return code
+
+    def _exe_install_guided(self, key: str, exe_path: Path,
+                            timeout: int = 600) -> bool:
+        """引导式安装 GUI 安装器：启动（提权）→ 轮询检测产物就绪。
+
+        HidHide 官方安装器为自定义 setup（实测无 /quiet /silent 静默参数、
+        manifest asInvoker），只能弹出安装向导由用户点击完成；
+        编排器在后台轮询检测安装产物出现后自动继续。
+        """
+        if self.dry_run:
+            time.sleep(0.4)
+            return True
+        display = _OFFICIAL[key]["display"]
+        self._log(f"启动 {display} 安装向导（请在弹出的窗口中完成安装）")
+        self._set(OrchState.INSTALLING, self.progress,
+                  f"请在 {display} 安装向导中完成安装…")
+        try:
+            if is_admin():
+                subprocess.Popen([str(exe_path)])
+            else:
+                subprocess.Popen(
+                    ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                     "-Command",
+                     f"Start-Process -FilePath '{exe_path}' -Verb RunAs"])
+        except Exception as e:  # noqa: BLE001
+            self._log(f"启动 {display} 安装器失败: {e}", "error")
+            return False
+        # 后台轮询检测安装产物出现
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self._component_ready(key):
+                self._log(f"{display} 安装完成（已检测到产物）")
+                return True
+            time.sleep(2)
+        self._log(f"{display} 未在 {timeout}s 内检测到安装完成", "warn")
+        return self._component_ready(key)
+
+    def _component_ready(self, key: str) -> bool:
+        """检测组件安装产物是否就绪。"""
+        try:
+            if key == "hidhide":
+                from .hidhid_manager import get_cli_path
+                return bool(get_cli_path(force_refresh=True))
+            if key == "usbipd":
+                return bool(find_usbip_cli()) or service_running("usbipd")
+        except Exception:  # noqa: BLE001
+            pass
+        return False
 
     # ---------- 验证 ----------
     def _verify(self) -> dict:

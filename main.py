@@ -97,7 +97,7 @@ def cmd_detect(app: DS5HubApp) -> None:
 
 def cmd_pack(app: DS5HubApp) -> None:
     """生成本地安装引导脚本。"""
-    from .installer import InstallationHelper, ComponentDetector
+    from ds5hub.installer import InstallationHelper, ComponentDetector
     detector = ComponentDetector()
     results = detector.check_all()
     
@@ -110,6 +110,13 @@ def cmd_pack(app: DS5HubApp) -> None:
 
 
 def main() -> None:
+    # 无控制台/重定向环境下强制 UTF-8 输出，避免 emoji 触发 GBK 编码错误
+    for _s in (sys.stdout, sys.stderr):
+        try:
+            _s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:  # noqa: BLE001
+            pass
+
     parser = argparse.ArgumentParser(description="DS5Hub - DualSense USB/IP Hub")
     parser.add_argument("--tray", action="store_true", help="最小化托盘启动（开机自启）")
     parser.add_argument("--web-only", action="store_true", help="仅 Web 服务")

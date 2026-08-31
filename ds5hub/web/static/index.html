@@ -485,7 +485,7 @@ usbip attach -r &lt;DS5Hub&#x4E3B;&#x673A;IP&gt; -b 1-1</code></pre>
         <h4>Q: 找不到手柄怎么办？</h4>
         <ul><li>确认手柄已通过蓝牙或 USB 正确连接到电脑。</li><li>在 Windows「蓝牙和其他设备」中确认手柄已配对且状态为"已连接"。</li><li>尝试拔掉重插（USB 模式）或在设置中重新配对（蓝牙）。</li></ul>
         <h4>Q: 游戏依然能检测到原始手柄？</h4>
-        <ul><li>确认 HidHide 驱动已经正确安装并处于运行状态（服务名为 NefariusHidHide）。</li><li>确认已将游戏的可执行文件 (.exe) 添加到 HidHide 白名单中。</li><li>确认已在 DS5Hub 中对目标手柄执行了"隐藏"操作。</li></ul>
+        <ul><li>确认 HidHide 驱动已经正确安装并处于运行状态（服务名为 HidHide）。</li><li>确认已将游戏的可执行文件 (.exe) 添加到 HidHide 白名单中。</li><li>确认已在 DS5Hub 中对目标手柄执行了"隐藏"操作。</li></ul>
         <h4>Q: Windows 本机 usbip attach 失败？</h4>
         <ul><li>确认已安装 usbipd-win（提供 usbip.exe 与 vhci 驱动），并以<strong>管理员身份</strong>执行 attach。</li><li>首次 attach 需等待 vhci 驱动加载；若提示驱动异常，重启系统后再试。</li><li>确认 DS5Hub 对应手柄端口已监听（手柄卡片显示的端口号）。</li></ul>
         <h4>Q: Linux 客户端无法连接？</h4>

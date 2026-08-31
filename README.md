@@ -36,7 +36,7 @@ HidHide 驱动与 usbipd-win，并在完成后对每只 EXPOSED 手柄自动执�
 PREPARING   获取官方 msi：内嵌 redist → 项目/redist → %LOCALAPPDATA%\DS5Hub\redist
             → GitHub Releases latest 下载（nefarius/HidHide、dorssel/usbipd-win）
 INSTALLING  msiexec /qn /norestart 静默安装（Start-Process -Verb RunAs，仅 1 次 UAC）
-VERIFYING   NefariusHidHide 服务 + usbipd 服务 + HidHideCLI/usbip.exe 就绪验证
+VERIFYING   HidHide 服务 + usbipd 服务 + HidHideCLI/usbip.exe 就绪验证
 POST        DS5Hub 自动加入 HidHide 白名单
 DONE / NEEDS_REBOOT / FAILED（msiexec 3010 → NEEDS_REBOOT）
 ```

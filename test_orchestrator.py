@@ -55,17 +55,17 @@ def run_test():
     check("进度 100", st["progress"] == 100, st["progress"])
     check("verify 含 dry_run 标记", st["verify"].get("dry_run") is True, st["verify"])
 
-    print("\n== 2. redist 目录与占位 msi ==")
+    print("\n== 2. redist 目录与安装包 ==")
     import os
     d = orch._redist_dir()
     check("redist 目录可写", os.path.isdir(d), str(d))
-    fake = d / "_dryrun_hidhide.msi"
-    check("占位 msi 已生成", fake.exists(), str(fake))
+    pkg = orch._prepare_installer("hidhide")
+    check("HidHide 安装包就绪（真实或占位）", pkg is not None and pkg.exists(), str(pkg))
 
     print("\n== 3. 无客户端环境探测 ==")
     us = find_usbip_cli()
     check("find_usbip_cli 不崩溃（可为空串）", isinstance(us, str))
-    svc = service_running("NefariusHidHide")
+    svc = service_running("HidHide")
     check("service_running 返回 bool", isinstance(svc, bool))
 
     print("\n== 4. Web API ==")

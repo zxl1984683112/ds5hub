@@ -17,9 +17,11 @@ from typing import List, Optional
 from .pad_manager import AbstractPadDevice, PadInfo
 
 try:
-    import hidapi
+    # cython-hidapi（PyPI 名 hidapi，导入名 hid）——面向对象 API
+    import hid as hidapi
     _HIDAPI_AVAILABLE = True
-except ImportError:
+except ImportError:  # 无 hid 库时退化为空枚举（真实模式，无模拟回退）
+    hidapi = None  # type: ignore
     _HIDAPI_AVAILABLE = False
 
 
@@ -48,33 +50,27 @@ def enumerate_ds5_pads() -> List[HidDeviceEntry]:
     if not _HIDAPI_AVAILABLE:
         return results
     try:
-        hidapi.init()
+        devices = hidapi.enumerate(_DUALSENSE_VID)
     except Exception:
         return results
-    try:
-        for dev in hidapi.enumerate(_DUALSENSE_VID):
-            pid = dev.get("product_id", 0)
-            if pid not in (_DUALSENSE_USB_PID, _DUALSENSE_BT_PID):
-                continue
-            name = (dev.get("product_string", "") + " " +
-                    dev.get("manufacturer_string", "")).lower()
-            # 二次确认关键词匹配
-            if any(kw in name for kw in _DUALSENSE_NAME_KEYWORDS):
-                results.append(HidDeviceEntry(
-                    vendor_id=_DUALSENSE_VID,
-                    product_id=pid,
-                    serial_number=dev.get("serial_number", ""),
-                    path=dev.get("path", ""),
-                    interface_number=dev.get("interface_number", 0),
-                    manufacturer=dev.get("manufacturer_string", ""),
-                    product=dev.get("product_string", ""),
-                    release_version=dev.get("release_number", 0),
-                ))
-    finally:
-        try:
-            hidapi.exit()
-        except Exception:
-            pass
+    for dev in devices or []:
+        pid = dev.get("product_id", 0)
+        if pid not in (_DUALSENSE_USB_PID, _DUALSENSE_BT_PID):
+            continue
+        name = (dev.get("product_string", "") + " " +
+                dev.get("manufacturer_string", "")).lower()
+        # 二次确认关键词匹配
+        if any(kw in name for kw in _DUALSENSE_NAME_KEYWORDS):
+            results.append(HidDeviceEntry(
+                vendor_id=_DUALSENSE_VID,
+                product_id=pid,
+                serial_number=dev.get("serial_number", ""),
+                path=dev.get("path", ""),
+                interface_number=dev.get("interface_number", 0),
+                manufacturer=dev.get("manufacturer_string", ""),
+                product=dev.get("product_string", ""),
+                release_version=dev.get("release_number", 0),
+            ))
     return results
 
 
@@ -103,15 +99,14 @@ class HidPad(AbstractPadDevice):
         if not _HIDAPI_AVAILABLE:
             return False
         try:
-            hidapi.init()
-            self._handle = hidapi.open_path(self._info.path)
-            if self._handle is None:
-                return False
-            # 尝试设置独占模式（非阻塞）
-            hidapi.set_nonblocking(self._handle, 1)
+            dev = hidapi.device()
+            dev.open_path(self._info.path)
+            # 非阻塞模式（后台线程轮询读取）
+            dev.set_nonblocking(1)
+            self._handle = dev
             self._start_read_thread()
             return True
-        except Exception as e:
+        except Exception:
             return False
 
     def close(self) -> None:
@@ -122,7 +117,7 @@ class HidPad(AbstractPadDevice):
         with self._lock:
             if self._handle is not None:
                 try:
-                    hidapi.close(self._handle)
+                    self._handle.close()
                 except Exception:
                     pass
                 self._handle = None
@@ -146,12 +141,12 @@ class HidPad(AbstractPadDevice):
             return False
         try:
             with self._lock:
-                # hidapi.write 要求第一个字节为 report id（0 表示无 report id）
+                # 写入输出报告（handle.write）
                 payload = bytearray(data)
                 if len(payload) < self.OUT_REPORT_LEN:
                     pad_len = self.OUT_REPORT_LEN - len(payload)
                     payload.extend(b"\x00" * pad_len)
-                hidapi.write(self._handle, bytes(payload))
+                self._handle.write(bytes(payload))
             return True
         except Exception:
             return False
@@ -167,7 +162,7 @@ class HidPad(AbstractPadDevice):
                     with self._lock:
                         if self._handle is None:
                             break
-                        chunk = hidapi.read(self._handle, self.IN_REPORT_LEN)
+                        chunk = self._handle.read(self.IN_REPORT_LEN)
                     if chunk:
                         with self._lock:
                             self._last_report = chunk

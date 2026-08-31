@@ -16,7 +16,9 @@ run_err.log
 # ==== 构建产物 (PyInstaller) ====
 build/
 dist/
+redist/
 *.spec
+!ds5hub.spec
 *.exe
 *.manifest
 

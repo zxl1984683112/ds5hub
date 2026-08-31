@@ -85,8 +85,11 @@ def create_app(app: DS5HubApp) -> FastAPI:
 
         if action == "whitelist":
             ok = register_app_as_whitelisted(cli)
-            msg = "已添加到白名单" if ok else "添加失败"
-            return {"ok": ok, "message": msg, "mode": "global"}
+            msg = "已添加到白名单" if ok else "添加失败（HidHideCLI 未响应或驱动未加载）"
+            resp = {"ok": ok, "message": msg, "mode": "global"}
+            if not ok:
+                resp["error"] = msg
+            return resp
 
         elif action == "unhide":
             # global: 取消所有；per-pad: 查找对应手柄 VID/PID

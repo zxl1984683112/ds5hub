@@ -108,7 +108,7 @@ class ComponentDetector:
         # 检查服务是否运行（兼容中文 Windows 输出编码）
         try:
             out = subprocess.run(
-                ["sc", "query", "NefariusHidHide"],
+                ["sc", "query", "HidHide"],
                 capture_output=True, text=True, timeout=5,
                 encoding="utf-8", errors="replace")
             if "RUNNING" not in out.stdout.upper():

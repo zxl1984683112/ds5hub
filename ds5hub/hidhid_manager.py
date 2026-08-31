@@ -5,7 +5,7 @@ HidHide 管理器：检测 / 注册表白名单 / 一键安装引导。
 关键路径：
 - HKLM\SOFTWARE\Nefarius Software Solutions\eVasive Systems Supports Pvt Ltd\HidHide\Services\\ApplicationPathList
 - HidHideCLI.exe (通常安装于 APPDATA)
-- sc query NefariusHidHide  → 检查服务是否运行
+- sc query HidHide  → 检查服务是否运行
 """
 from __future__ import annotations
 
@@ -69,12 +69,12 @@ def get_cli_path(force_refresh: bool = False) -> str:
 
 
 def get_service_running(cli: str = "") -> bool:
-    """检查 Windows 服务 'NefariusHidHide' 是否正在运行。"""
+    """检查 Windows 服务 'HidHide' 是否正在运行。"""
     if not cli:
         cli = get_cli_path()
     try:
         out = subprocess.run(
-            ["sc", "query", "NefariusHidHide"],
+            ["sc", "query", "HidHide"],
             capture_output=True, text=True, timeout=5,
             encoding="utf-8", errors="replace")
         return "RUNNING" in out.stdout.upper()
@@ -82,44 +82,71 @@ def get_service_running(cli: str = "") -> bool:
         return False
 
 
+def _run_cli(cli: str, *args: str, timeout: int = 8) -> "tuple[int, str, str]":
+    """运行 HidHideCLI，返回 (returncode, stdout, stderr)。
+
+    HidHideCLI 在驱动未加载进设备栈（未重启）时会在退出前挂起，故统一带超时。
+    """
+    try:
+        r = subprocess.run(
+            [cli, *args], capture_output=True, text=True, timeout=timeout,
+            encoding="utf-8", errors="replace")
+        return r.returncode, r.stdout, r.stderr
+    except subprocess.TimeoutExpired:
+        return -1, "", "timeout"
+    except Exception:
+        return -1, "", ""
+
+
+def _find_instance_path(cli: str, vid_hex: str, pid_hex: str) -> str:
+    """从 HidHide 设备枚举中按 vid/pid 匹配 device instance path。
+
+    HidHideCLI --dev-gaming / --dev-all 输出形如:
+        HID\\VID_054C&PID_0CE6\\7&...  DualSense Wireless Controller
+    返回首列 instance path；找不到返回空串。
+    """
+    vid = f"vid_{vid_hex.lower()}"
+    pid = f"pid_{pid_hex.lower()}"
+    for args in (["--dev-gaming"], ["--dev-all"]):
+        rc, out, _ = _run_cli(cli, *args)
+        if rc != 0:
+            continue
+        for line in out.splitlines():
+            low = line.lower()
+            if vid in low and pid in low:
+                tok = line.strip().split()
+                if tok:
+                    return tok[0]
+    return ""
+
+
 def is_device_filtered(cli: str, vid_hex: str, pid_hex: str) -> Optional[bool]:
-    """检查某个 vid/pid 是否已被 HidHide 过滤（返回 True/False/None 失败）。"""
+    """检查某个 vid/pid 是否已被 HidHide 隐藏（--dev-list）。"""
     if not cli:
         return None
-    try:
-        # HID device GUID 格式: hid#{vid_XXXX&pid_YYYY}...
-        cmd = [cli, "list-hidden-devices"]
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=5, encoding="utf-8", errors="replace")
-        devices = out.stdout.strip().splitlines()
-        target = f"{vid_hex}&{pid_hex}"
-        for dev in devices:
-            if target in dev:
-                return True
-        return False
-    except Exception:
+    rc, out, _ = _run_cli(cli, "--dev-list")
+    if rc != 0:
         return None
+    vid = f"vid_{vid_hex.lower()}"
+    pid = f"pid_{pid_hex.lower()}"
+    for line in out.splitlines():
+        low = line.lower()
+        if vid in low and pid in low:
+            return True
+    return False
 
 
 def register_app_as_whitelisted(cli: str) -> bool:
-    """将本程序 exe 添加到 HidHide 应用白名单（可操作其隐藏设备的能力）。"""
+    """将本程序 exe 注册到 HidHide 应用白名单（--app-reg）。"""
     if not cli:
         return False
-    prog_exe = getattr(sys, "_MEIPASS", sys.executable)
-    # HidHide 白名单通过注册表管理；用 HidHideCLI 的 whitelist subcommand
-    # 注意: 不同版本的 CLI 命令可能不同，这里采用通用方案
-    try:
-        r = subprocess.run(
-            [cli, "whitelist", "add", prog_exe],
-            capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
-        return r.returncode == 0
-    except FileNotFoundError:
-        return False
-    except Exception:
-        return False
+    prog_exe = sys.executable  # 打包后即 ds5hub.exe；源码运行是 python.exe
+    rc, _, _ = _run_cli(cli, "--app-reg", prog_exe)
+    return rc == 0
 
 
 def hide_devices_by_vid_pid(cli: str, vid_hex: str, pid_hex: str) -> HidHideResult:
-    """尝试通过 HidHide 隐藏指定 VID/PID 的设备，使它们只对本程序可见。"""
+    """通过 HidHide 隐藏指定 VID/PID 的设备（--dev-hide）。"""
     if not cli:
         return HidHideResult(
             HidHideStatus.NOT_INSTALLED,
@@ -127,51 +154,45 @@ def hide_devices_by_vid_pid(cli: str, vid_hex: str, pid_hex: str) -> HidHideResu
             action_needed=True,
             install_cmd=_get_install_guide())
 
-    # 检查设备是否已在被隐藏列表中
-    hidden = is_device_filtered(cli, vid_hex, pid_hex)
-    if hidden is True:
+    if is_device_filtered(cli, vid_hex, pid_hex) is True:
         return HidHideResult(HidHideStatus.OK,
                              f"设备 vid_{vid_hex} pid_{pid_hex} 已隐藏",
                              cli_path=cli)
-    if hidden is False:
-        return HidHideResult(HidHideStatus.DEVICE_NOT_HIDDEN,
-                             f"设备 vid_{vid_hex} pid_{pid_hex} 未被隐藏",
-                             cli_path=cli)
 
-    # 尝试执行隐藏
-    try:
-        r = subprocess.run(
-            [cli, "hide-device-by-id", f"vid_{vid_hex}", f"pid_{pid_hex}"],
-            capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
-        if r.returncode == 0:
-            return HidHideResult(HidHideStatus.OK,
-                                 f"已隐藏 hid#{vid_hex}_{pid_hex}",
-                                 cli_path=cli)
-        return HidHideResult(HidHideStatus.DEVICE_NOT_HIDDEN,
-                             f"隐藏失败: {r.stderr.strip()[:200]}",
+    inst = _find_instance_path(cli, vid_hex, pid_hex)
+    if not inst:
+        return HidHideResult(
+            HidHideStatus.DEVICE_NOT_HIDDEN,
+            f"未在 HidHide 设备列表中找到 vid_{vid_hex} pid_{pid_hex}（设备未连接或系统尚未重启）",
+            cli_path=cli)
+
+    rc, _, err = _run_cli(cli, "--dev-hide", inst)
+    if rc == 0:
+        return HidHideResult(HidHideStatus.OK,
+                             f"已隐藏 {inst}",
                              cli_path=cli)
-    except FileNotFoundError:
-        return HidHideResult(HidHideStatus.NOT_INSTALLED,
-                             "HidHideCLI 文件丢失",
-                             action_needed=True,
-                             install_cmd=_get_install_guide())
-    except Exception as e:
-        return HidHideResult(HidHideStatus.DEVICE_NOT_HIDDEN,
-                             f"隐藏异常: {e}",
-                             cli_path=cli)
+    return HidHideResult(
+        HidHideStatus.DEVICE_NOT_HIDDEN,
+        f"隐藏失败: {err.strip()[:200] or 'HidHideCLI 未响应（可能需要重启）'}",
+        cli_path=cli)
 
 
 def unhide_all(cli: str) -> bool:
-    """取消所有 HidHide 隐藏。"""
+    """取消所有 HidHide 隐藏（--dev-list 枚举后逐个 --dev-unhide）。"""
     if not cli:
         return False
-    try:
-        r = subprocess.run(
-            [cli, "unhide-all"],
-            capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
-        return r.returncode == 0
-    except Exception:
+    rc, out, _ = _run_cli(cli, "--dev-list")
+    if rc != 0:
         return False
+    ok = True
+    for line in out.splitlines():
+        tok = line.strip().split()
+        if not tok:
+            continue
+        r2, _, _ = _run_cli(cli, "--dev-unhide", tok[0])
+        if r2 != 0:
+            ok = False
+    return ok
 
 
 def detect_overall_status(cli: str = "") -> HidHideResult:
@@ -189,7 +210,7 @@ def detect_overall_status(cli: str = "") -> HidHideResult:
     if not get_service_running(cli):
         return HidHideResult(
             HidHideStatus.SERVICE_NOT_RUNNING,
-            "HidHide 服务未运行。请重启电脑或手动启动服务 'NefariusHidHide'。",
+            "HidHide 服务未运行。请重启电脑或手动启动服务 'HidHide'。",
             cli_path=cli,
             action_needed=True)
 
