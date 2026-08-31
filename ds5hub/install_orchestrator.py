@@ -2,12 +2,12 @@
 """
 一键环境部署编排器（InstallOrchestrator）。
 
-目标：目标机上自动完成官方组件（HidHide / usbipd-win）的获取、静默安装、
+目标：目标机上自动完成官方组件（HidHide / usbip-win2）的获取、静默安装、
 就绪验证与基础配置，达到"只装 DS5Hub、零手动配置"的体验。
 
 流程状态机：
-  IDLE -> PREPARING(获取 msi: 内嵌/本地 redist/GitHub Releases 下载)
-       -> INSTALLING(提权 msiexec /qn /norestart, 触发一次 UAC)
+  IDLE -> PREPARING(获取安装包: 内嵌/本地 redist/GitHub Releases 下载)
+       -> INSTALLING(usbip-win2 静默 /VERYSILENT；HidHide 引导式，各触发一次 UAC)
        -> VERIFYING(服务与 CLI 就绪验证)
        -> POST(DS5Hub 自动白名单)
        -> DONE | NEEDS_REBOOT | FAILED
@@ -16,7 +16,7 @@
 DS5Hub 不修改、不链接其代码，仅作为独立组件安装。
 
 开发机零驱动约束：dry_run=True 时完整走状态机但不执行真实安装
-（msiexec/验证/白名单全部模拟），用于无驱动环境的自动化测试。
+（安装/验证/白名单全部模拟），用于无驱动环境的自动化测试。
 """
 from __future__ import annotations
 
@@ -47,9 +47,10 @@ class OrchState(str, Enum):
 
 
 # 官方组件元数据。
-# kind: "msi" = msiexec /qn 静默安装；"exe" = 官方 GUI 安装器（无静默参数，
-#       实测 HidHide_*.exe 为自定义 setup，asInvoker 且不含 /quiet /silent，
-#       采用"启动安装器 + 轮询检测就绪"的引导式安装）。
+# kind: "msi" = msiexec /qn 静默安装；
+#       "exe" 带 silent_args = Inno Setup /VERYSILENT 静默安装（如 usbip-win2）；
+#       "exe" 无 silent_args = 官方 GUI 安装器（实测 HidHide_*.exe 为自定义 setup，
+#       asInvoker 且不含 /quiet /silent，采用"启动安装器 + 轮询检测就绪"的引导式安装）。
 _OFFICIAL = {
     "hidhide": {
         "kind": "exe",
@@ -58,12 +59,13 @@ _OFFICIAL = {
         "suffix": "_x64.exe",      # 精确匹配 x64
         "display": "HidHide",
     },
-    "usbipd": {
-        "kind": "msi",
-        "repo": "dorssel/usbipd-win",
-        "asset": "usbipd-win_",
-        "suffix": "_x64.msi",
-        "display": "usbipd-win",
+    "usbip_win2": {
+        "kind": "exe",
+        "repo": "vadimgrn/usbip-win2",
+        "asset": "USBip-",
+        "suffix": "-x64.exe",
+        "display": "usbip-win2",
+        "silent_args": ["/VERYSILENT", "/NORESTART"],
     },
 }
 
@@ -82,7 +84,7 @@ def is_admin() -> bool:
 
 
 def find_usbip_cli() -> str:
-    """定位 usbip.exe（usbipd-win 提供的本机 USB/IP 客户端）。"""
+    """定位 usbip.exe（usbip-win2 提供的本机 USB/IP 客户端）。"""
     # 1) PATH
     try:
         out = subprocess.run(
@@ -92,9 +94,9 @@ def find_usbip_cli() -> str:
             return out.stdout.strip().splitlines()[0].strip()
     except Exception:  # noqa: BLE001
         pass
-    # 2) 默认安装目录
+    # 2) 默认安装目录 C:\Program Files\USBip
     pf = os.environ.get("ProgramFiles", r"C:\Program Files")
-    cand = Path(pf) / "usbipd-win" / "bin" / "usbip.exe"
+    cand = Path(pf) / "USBip" / "usbip.exe"
     if cand.is_file():
         return str(cand)
     return ""
@@ -145,7 +147,7 @@ class InstallOrchestrator:
         self.message = "空闲"
         self.error = ""
         self.reboot_required = False
-        self.installed = {"hidhide": False, "usbipd": False}
+        self.installed = {"hidhide": False, "usbip_win2": False}
         self.verify_result: Dict = {}
         self.steps_log: List[dict] = []
         self._thread: Optional[threading.Thread] = None
@@ -200,7 +202,7 @@ class InstallOrchestrator:
     def _run(self) -> None:
         try:
             self.reboot_required = False
-            self.installed = {"hidhide": False, "usbipd": False}
+            self.installed = {"hidhide": False, "usbip_win2": False}
             self._log("环境部署开始" + ("（dry_run 模拟，不真实安装）" if self.dry_run else ""))
 
             # Step 1: 准备安装包
@@ -214,10 +216,11 @@ class InstallOrchestrator:
                 installers[key] = p
                 self._log(f"安装包就绪: {key} -> {p.name}")
 
-            # Step 2: 安装（msi 静默 / exe 引导式）
+            # Step 2: 安装（msi 静默 / exe 静默或引导式）
             self._set(OrchState.INSTALLING, 15, "安装组件…")
             for i, (key, path) in enumerate(installers.items()):
-                kind = _OFFICIAL[key]["kind"]
+                spec = _OFFICIAL[key]
+                kind = spec["kind"]
                 if kind == "msi":
                     self._log(f"安装 {key}: msiexec /qn /norestart")
                     code = self._msi_install_elevated(path)
@@ -226,6 +229,12 @@ class InstallOrchestrator:
                         self.reboot_required = True
                     elif code != MSIEXEC_EXIT_OK:
                         raise RuntimeError(f"{key} 安装失败（msiexec 退出码 {code}）")
+                    self.installed[key] = True
+                elif spec.get("silent_args"):
+                    # exe 静默安装（如 usbip-win2 的 Inno Setup /VERYSILENT /NORESTART）
+                    ok = self._exe_install_silent(key, path, spec["silent_args"])
+                    if not ok:
+                        raise RuntimeError(f"{key} 静默安装未在限时内完成")
                     self.installed[key] = True
                 else:  # exe 引导式安装（官方安装器无静默参数）
                     ok = self._exe_install_guided(key, path)
@@ -270,7 +279,7 @@ class InstallOrchestrator:
             self._log(f"部署失败: {e}", "error")
             self._set(OrchState.FAILED, self.progress, f"失败: {e}")
 
-    # ---------- msi 获取 ----------
+    # ---------- 安装包获取 ----------
     def _redist_dir(self) -> Path:
         """redist 目录：内嵌(PyInstaller) -> 项目内 -> LOCALAPPDATA(可写 fallback)。"""
         candidates: List[Path] = []
@@ -392,14 +401,39 @@ class InstallOrchestrator:
         self._log(f"{display} 未在 {timeout}s 内检测到安装完成", "warn")
         return self._component_ready(key)
 
+    def _exe_install_silent(self, key: str, exe_path: Path,
+                            silent_args: list, timeout: int = 900) -> bool:
+        """静默安装 exe 安装器（如 usbip-win2 的 Inno Setup /VERYSILENT）。
+
+        与 _exe_install_guided 的区别：安装器原生支持静默参数，
+        提权同步运行后无需用户交互，产物应自动就绪。
+        """
+        if self.dry_run:
+            time.sleep(0.4)
+            return True
+        display = _OFFICIAL[key]["display"]
+        self._log(f"静默安装 {display}: {' '.join(silent_args)}")
+        code, _ = run_elevated(str(exe_path), list(silent_args), timeout=timeout)
+        self._log(f"{display} 静默安装退出码 {code}")
+        if code != 0:
+            self._log(f"{display} 静默安装非零退出码，仍尝试检测产物", "warn")
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self._component_ready(key):
+                self._log(f"{display} 静默安装完成（已检测到产物）")
+                return True
+            time.sleep(2)
+        self._log(f"{display} 未在 {timeout}s 内检测到安装完成", "warn")
+        return self._component_ready(key)
+
     def _component_ready(self, key: str) -> bool:
         """检测组件安装产物是否就绪。"""
         try:
             if key == "hidhide":
                 from .hidhid_manager import get_cli_path
                 return bool(get_cli_path(force_refresh=True))
-            if key == "usbipd":
-                return bool(find_usbip_cli()) or service_running("usbipd")
+            if key == "usbip_win2":
+                return bool(find_usbip_cli())
         except Exception:  # noqa: BLE001
             pass
         return False
@@ -408,15 +442,14 @@ class InstallOrchestrator:
     def _verify(self) -> dict:
         if self.dry_run:
             return {"hidhide_cli": "(dry-run)", "hidhide_service": True,
-                    "usbip_cli": "(dry-run)", "usbipd_service": True,
+                    "usbip_cli": "(dry-run)", "usbip_win2_installed": True,
                     "dry_run": True}
         from .hidhid_manager import get_cli_path, get_service_running
         hh_cli = get_cli_path(force_refresh=True)
         hh_svc = get_service_running(hh_cli) if hh_cli else False
         usbip = find_usbip_cli()
-        usbipd_svc = service_running("usbipd")
         return {"hidhide_cli": hh_cli or "", "hidhide_service": hh_svc,
-                "usbip_cli": usbip, "usbipd_service": usbipd_svc}
+                "usbip_cli": usbip, "usbip_win2_installed": bool(usbip)}
 
 
 def _selftest() -> None:
@@ -434,7 +467,7 @@ def _selftest() -> None:
         if o.status()["state"] in ("done", "failed", "needs_reboot"):
             break
     assert o.status()["state"] == "done", o.status()
-    assert o.installed["hidhide"] and o.installed["usbipd"]
+    assert o.installed["hidhide"] and o.installed["usbip_win2"]
     print("install_orchestrator selftest OK")
 
 

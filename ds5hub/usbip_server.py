@@ -84,7 +84,7 @@ def _hid_descriptor() -> bytes:
         0x10, 0x01,       # bcdHID 1.10
         0x00,             # bCountryCode
         0x01,             # bNumDescriptors
-        0x22, 0xD7, 0x00, # Report descriptor type + length (215)
+        0x22, 0x11, 0x01, # Report descriptor type + length (273 = 0x0111)
     ])
 
 
@@ -129,44 +129,56 @@ def config_descriptor() -> bytes:
 
 
 def report_descriptor() -> bytes:
-    """DualSense 风格 HID 报告描述符（精简版，215 字节占位 + 有效结构）。
+    """真实 DualSense USB 有线版 HID 报告描述符（273 字节）。
 
-    注：目标机联调时应用真实 DualSense BT 转 USB 报告描述符（逆向 func197 产物）。
-    此处提供结构完整、按键/摇杆/扳机基本的描述符。
+    与 Linux 内核 hid-playstation.c 的 dualsense_usb_report_descriptor 及
+    nondebug/dualsense 从真实设备 dump 的 raw 描述符一致。声明了：
+      - 输入报告 0x01（64 字节）：X/Y/Z/Rz 摇杆 + Rx/Ry(L2/R2) + 序列号 +
+        十字键 + 15 按键 + 触摸板状态 + 52 字节传感器（陀螺仪/加速度计/触摸点/电池）
+      - 输出报告 0x02（48 字节）：灯效 / 双震动马达 / 自适应扳机（FFB）
+      - 特性报告 0x05/0x08/0x09/0x0A/0x20/0x21/0x22/0x80…0xF5：
+        校准、固件版本、蓝牙控制、配对等
+
+    注：这是「报告描述符」转译——对齐 func197 报告转换的 USB 输出侧布局，
+    使游戏/系统按有线 DualSense 完整字段解析；蓝牙→USB 的报告「数据」字段
+    重排（func197 核心）在报告读取层另行处理，真机联调时验证。
     """
-    return bytes([
-        # Usage Page (Generic Desktop), Usage (Game Pad)
-        0x05, 0x01, 0x09, 0x05,
-        # Collection (Application)
-        0xA1, 0x01,
-        # Report ID 1 ...（输入报告 64 字节结构占位）
-        0x85, 0x01,
-        # 摇杆: X, Y, Z, Rz (16-bit each, logical 0..1023)
-        0x05, 0x01, 0x09, 0x30, 0x09, 0x31, 0x09, 0x32, 0x09, 0x35,
-        0x15, 0x00, 0x26, 0xFF, 0x03, 0x75, 0x10, 0x95, 0x04,
-        0x81, 0x02,
-        # 扳机: Rx, Ry (8-bit), 0..255
-        0x09, 0x33, 0x09, 0x34, 0x15, 0x00, 0x26, 0xFF, 0x00, 0x75, 0x08, 0x95, 0x02, 0x81, 0x02,
-        # 按键 14 个 (Button Page 0..13)
-        0x05, 0x09, 0x19, 0x01, 0x29, 0x0E,
-        0x15, 0x00, 0x25, 0x01, 0x75, 0x01, 0x95, 0x0E, 0x81, 0x02,
-        # Padding 2 bit
-        0x75, 0x01, 0x95, 0x02, 0x81, 0x01,
-        # 方向键 hat switch 8
-        0x05, 0x01, 0x09, 0x39, 0x15, 0x00, 0x25, 0x07, 0x35, 0x00, 0x46, 0x3B, 0x01, 0x65, 0x14, 0x75, 0x04, 0x95, 0x01, 0x81, 0x42,
-        0x65, 0x00,
-        # 填充到 64 字节输入报告
-        0x75, 0x08, 0x95, 0x03, 0x81, 0x01,
-        0xC0,
-        # ---- 输出报告 (report id 2, 64B) ----
-        0x85, 0x02,
-        0x75, 0x08, 0x95, 0x3F, 0x91, 0x02,
-        0xC0,
-        # ---- 特性报告 (report id 5 占位) ----
-        0x85, 0x05,
-        0x75, 0x08, 0x95, 0x3F, 0xB1, 0x02,
-        0xC0,
-    ])
+    return bytes.fromhex(
+        "05 01 09 05 A1 01 "                                  # Usage Page(Desktop) Usage(Gamepad) Collection(App)
+        # ---- 输入报告 0x01 (64B) ----
+        "85 01 "                                              # Report ID 1
+        "09 30 09 31 09 32 09 35 09 33 09 34 "                # X Y Z Rz Rx Ry
+        "15 00 26 FF 00 75 08 95 06 81 02 "                   # 6×8bit: 摇杆4 + L2/R2
+        "06 00 FF 09 20 95 01 81 02 "                         # 序列号
+        "05 01 09 39 15 00 25 07 35 00 46 3B 01 65 14 75 04 95 01 81 42 65 00 "  # 十字键 hat
+        "05 09 19 01 29 0F 15 00 25 01 75 01 95 0F 81 02 "    # 15 按键
+        "06 00 FF 09 21 95 0D 81 02 "                         # 触摸板状态 13bit
+        "06 00 FF 09 22 15 00 26 FF 00 75 08 95 34 81 02 "    # 传感器 52B
+        # ---- 输出报告 0x02 (48B) ----
+        "85 02 09 23 95 2F 91 02 "
+        # ---- 特性报告 ----
+        "85 05 09 33 95 28 B1 02 "
+        "85 08 09 34 95 2F B1 02 "
+        "85 09 09 24 95 13 B1 02 "
+        "85 0A 09 25 95 1A B1 02 "
+        "85 20 09 26 95 3F B1 02 "
+        "85 21 09 27 95 04 B1 02 "
+        "85 22 09 40 95 3F B1 02 "
+        "85 80 09 28 95 3F B1 02 "
+        "85 81 09 29 95 3F B1 02 "
+        "85 82 09 2A 95 09 B1 02 "
+        "85 83 09 2B 95 3F B1 02 "
+        "85 84 09 2C 95 3F B1 02 "
+        "85 85 09 2D 95 02 B1 02 "
+        "85 A0 09 2E 95 01 B1 02 "
+        "85 E0 09 2F 95 3F B1 02 "
+        "85 F0 09 30 95 3F B1 02 "
+        "85 F1 09 31 95 3F B1 02 "
+        "85 F2 09 32 95 0F B1 02 "
+        "85 F4 09 35 95 3F B1 02 "
+        "85 F5 09 36 95 03 B1 02 "
+        "C0"                                                  # End Collection
+    )
 
 
 STRINGS = {
@@ -460,7 +472,9 @@ def compute_size_check():
     assert struct.unpack("<H", cd[2:4])[0] == len(cd)
     rd = report_descriptor()
     hid = _hid_descriptor()
-    assert struct.unpack("<H", hid[5:7])[0] == len(rd)
+    # HID 描述符布局: [0]bLength [1]type [2:4]bcdHID [4]country [5]numDesc
+    #                 [6]reportType [7:9]wDescriptorLength
+    assert struct.unpack("<H", hid[7:9])[0] == len(rd)
 
 
 if __name__ == "__main__":

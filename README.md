@@ -29,16 +29,17 @@ python -m ds5hub.install_orchestrator    # 部署编排器自测
 ## 一键环境部署（M3）
 
 Web 面板「组件检测」卡片内置 **🚀 一键环境部署**：自动安装官方
-HidHide 驱动与 usbipd-win，并在完成后对每只 EXPOSED 手柄自动执行
+HidHide 驱动与 usbip-win2，并在完成后对每只 EXPOSED 手柄自动执行
 本机 `usbip attach`（虚拟设备直插系统）。
 
 ```
-PREPARING   获取官方 msi：内嵌 redist → 项目/redist → %LOCALAPPDATA%\DS5Hub\redist
-            → GitHub Releases latest 下载（nefarius/HidHide、dorssel/usbipd-win）
-INSTALLING  msiexec /qn /norestart 静默安装（Start-Process -Verb RunAs，仅 1 次 UAC）
-VERIFYING   HidHide 服务 + usbipd 服务 + HidHideCLI/usbip.exe 就绪验证
+PREPARING   获取官方安装包：内嵌 redist → 项目/redist → %LOCALAPPDATA%\DS5Hub\redist
+            → GitHub Releases latest 下载（nefarius/HidHide、vadimgrn/usbip-win2）
+INSTALLING  usbip-win2 静默安装（Inno Setup /VERYSILENT /NORESTART，提权 1 次 UAC）
+            HidHide 引导式安装（弹出向导由用户点击，后台轮询检测完成）
+VERIFYING   HidHide 服务 + usbip-win2 usbip.exe 就绪验证
 POST        DS5Hub 自动加入 HidHide 白名单
-DONE / NEEDS_REBOOT / FAILED（msiexec 3010 → NEEDS_REBOOT）
+DONE / NEEDS_REBOOT / FAILED（HidHide class filter 需重启生效）
 ```
 
 - 许可合规：捆绑/下载的均为原封官方 MSI（GPL 系开源组件），DS5Hub 不修改不链接
@@ -82,7 +83,7 @@ Web 管理界面 (FastAPI + 静态页, 8080)
   ├─ logger.py        文件日志 + 内存环形缓冲
   ├─ autostart.py     HKCU Run 开机自启
   └─ web_api.py       REST API
-驱动链路(目标机): HidHide 隐藏真实手柄 + hidapi 读写 + usbipd-win vhci attach
+驱动链路(目标机): HidHide 隐藏真实手柄 + hidapi 读写 + usbip-win2 vhci attach
 ```
 
 ## 目录
@@ -118,7 +119,7 @@ ds5hub/
 
 ## 状态
 
-- [x] M1：usbip 协议服务端（标准 usbip 1.0，兼容 Linux usbip/usbipd-win 客户端）
+- [x] M1：usbip 协议服务端（标准 usbip 1.0，兼容 Linux usbip/usbip-win2 客户端）
 - [x] M1：模拟手柄桩 + 多手柄槽位 + Web 管理面板 + 日志 + 自启
 - [x] M1：端到端协议测试（DEVLIST/IMPORT/枚举/HID 报告/OUT/UNLINK）
 - [x] M2：真实 hidapi 枚举 + HidHide 自动化 + 自动重连（开发机无驱动环境）

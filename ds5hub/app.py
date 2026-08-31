@@ -316,9 +316,10 @@ class DS5HubApp:
             return {"ok": False, "error": "usbip 客户端不可用（请先完成环境部署）"}
         host = "127.0.0.1"
         port = int(slot.port or self.cfg.get("usbip_base_port", 3240))
-        args = ["attach", "--remote", host, "--busid", slot.busid]
-        if port != 3240:  # 非标准端口才需要显式指定
-            args += ["--tcpport", str(port)]
+        # usbip-win2 客户端：--tcp-port 为全局参数（须在子命令 attach 之前），
+        # 短参数 -t 在 attach 子命令里与 --terse 冲突，故统一用长参数。
+        args = ["--tcp-port", str(port), "attach",
+                "--remote", host, "--bus-id", slot.busid]
         code, out = run_elevated(usbip, args, timeout=60)
         ok = code == 0
         result = {"ok": ok, "busid": slot.busid, "port": port, "output": out}

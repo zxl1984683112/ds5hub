@@ -53,7 +53,7 @@ class UninstallState(str, Enum):
 # 组件在"应用和功能"里的显示名关键词（小写匹配）
 _COMPONENT_KEYWORDS = {
     "hidhide": ["hidhide"],
-    "usbipd": ["usbipd"],
+    "usbip_win2": ["usbip"],
 }
 
 
@@ -72,10 +72,11 @@ def _read_uninstall_entry(key) -> tuple:
 
 
 def find_component_uninstall() -> Dict[str, dict]:
-    """从注册表 Uninstall 键枚举官方组件的 MSI 卸载信息。
+    """从注册表 Uninstall 键枚举官方组件的卸载信息。
 
-    返回 {组件: {"display_name", "product_code", "uninstall_string"}}，
-    仅返回 MsiExec 系（可静默重放）的条目；未安装则不含该键。
+    返回 {组件: {"display_name", "product_code", "uninstall_string"}}。
+    MSI 组件（product_code 非空，MsiExec 系）与 Inno Setup 组件
+    （uninstall_string 指向 unins000.exe）均可静默卸载；未安装则不含该键。
     """
     results: Dict[str, dict] = {}
     if os.name != "nt":
@@ -227,7 +228,7 @@ class UninstallOrchestrator:
             if remove_components:
                 self._step_remove_components()
             else:
-                self._log("保留 HidHide / usbipd-win（未勾选组件卸载）")
+                self._log("保留 HidHide / usbip-win2（未勾选组件卸载）")
 
             # Step 5: 清理数据
             self._set(UninstallState.CLEANUP, 80, "清理配置与缓存…")
@@ -270,8 +271,8 @@ class UninstallOrchestrator:
 
     def _step_remove_components(self) -> None:
         if self.dry_run:
-            self._log("dry_run: 模拟卸载组件 hidhide/usbipd")
-            self.removed_components = {"hidhide": True, "usbipd": True}
+            self._log("dry_run: 模拟卸载组件 hidhide/usbip_win2")
+            self.removed_components = {"hidhide": True, "usbip_win2": True}
             return
         entries = find_component_uninstall()
         if not entries:
@@ -279,17 +280,33 @@ class UninstallOrchestrator:
             return
         for comp, info in entries.items():
             guid = info.get("product_code", "")
-            if not guid:
-                self._log(f"{comp} 非 MSI 安装（{info['uninstall_string']}），"
+            uninst = info.get("uninstall_string", "")
+            if guid:
+                # MSI 组件（msiexec /x {GUID} /qn）
+                self._log(f"卸载 {info['display_name']}（msiexec /x /qn）")
+                code, _ = run_elevated(
+                    "msiexec.exe", ["/x", guid, "/qn", "/norestart"],
+                    timeout=600)
+                self._log(f"{comp} msiexec 退出码 {code}")
+                ok = code in (MSIEXEC_EXIT_OK, MSIEXEC_EXIT_REBOOT)
+                if code == MSIEXEC_EXIT_REBOOT:
+                    self.reboot_required = True
+            elif "unins" in uninst.lower():
+                # Inno Setup 组件（unins000.exe /VERYSILENT /NORESTART）
+                import shlex
+                exe = shlex.split(uninst)[0] if uninst.strip() else ""
+                if not exe:
+                    self._log(f"{comp} 卸载字符串为空，跳过", "warn")
+                    continue
+                self._log(f"卸载 {info['display_name']}（Inno Setup 静默卸载）")
+                code, _ = run_elevated(
+                    exe, ["/VERYSILENT", "/NORESTART"], timeout=600)
+                self._log(f"{comp} 卸载器退出码 {code}")
+                ok = code == 0
+            else:
+                self._log(f"{comp} 未知卸载方式（{uninst}），"
                           "跳过静默卸载，请手动处理", "warn")
                 continue
-            self._log(f"卸载 {info['display_name']}（msiexec /x /qn）")
-            code, _ = run_elevated(
-                "msiexec.exe", ["/x", guid, "/qn", "/norestart"], timeout=600)
-            self._log(f"{comp} msiexec 退出码 {code}")
-            ok = code in (MSIEXEC_EXIT_OK, MSIEXEC_EXIT_REBOOT)
-            if code == MSIEXEC_EXIT_REBOOT:
-                self.reboot_required = True
             self.removed_components[comp] = ok
             if not ok:
                 self._log(f"{comp} 卸载失败，中止后续组件卸载", "warn")
@@ -357,7 +374,7 @@ def _selftest() -> None:
     st = o.status()
     assert st["state"] == "done", st
     assert stopped == [1], "stop_callback 未调用"
-    assert o.removed_components == {"hidhide": True, "usbipd": True}
+    assert o.removed_components == {"hidhide": True, "usbip_win2": True}
     print("uninstall_orchestrator selftest OK")
 
 

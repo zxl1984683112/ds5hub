@@ -57,7 +57,7 @@ def run_test():
     check("dry_run 全流程 -> DONE", st["state"] == "done", st)
     check("stop_callback 恰好调用一次", stopped == [1], stopped)
     check("组件模拟卸载结果", st["removed_components"] ==
-          {"hidhide": True, "usbipd": True}, st["removed_components"])
+          {"hidhide": True, "usbip_win2": True}, st["removed_components"])
     check("进度 100", st["progress"] == 100, st["progress"])
 
     print("\n== 2. 重复卸载保护（运行中并发拒绝）==")
@@ -81,7 +81,7 @@ def run_test():
     entries = find_component_uninstall()
     check("find_component_uninstall 不崩溃且返回 dict", isinstance(entries, dict),
           entries)
-    # 开发机未装 HidHide/usbipd 时应为空；若本机装有其它软件同名组件也不影响
+    # 开发机未装 HidHide/usbip-win2 时应为空；若本机装有其它软件同名组件也不影响
     print(f"    （本机找到 {len(entries)} 个匹配组件条目）")
 
     print("\n== 4. 源码运行自删保护 ==")

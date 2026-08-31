@@ -10,8 +10,8 @@ PROXY = "http://127.0.0.1:7897"
 FILES = [
     ("https://github.com/nefarius/HidHide/releases/download/v1.5.230.0/HidHide_1.5.230_x64.exe",
      "HidHide_1.5.230_x64.exe"),
-    ("https://github.com/dorssel/usbipd-win/releases/download/v5.3.0/usbipd-win_5.3.0_x64.msi",
-     "usbipd-win_5.3.0_x64.msi"),
+    ("https://github.com/vadimgrn/usbip-win2/releases/download/v.0.9.7.8/USBip-0.9.7.8-x64.exe",
+     "USBip-0.9.7.8-x64.exe"),
 ]
 
 

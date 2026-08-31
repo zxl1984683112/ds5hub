@@ -4,12 +4,12 @@
 
 当前支持：
 1. HidHide 驱动——隐藏真实手柄（必需：本机游戏场景防止物理手柄双重输入）
-2. usbipd-win——提供本机 usbip 客户端 + vhci 虚拟主机控制器驱动
+2. usbip-win2——提供本机 USB/IP 客户端 + WHLK 认证签名的 vhci 驱动（免测试模式）
    （必需：DS5Hub 自带 usbip 服务端，但单机回环 attach 需要客户端与 vhci）
 
 架构说明：服务端与客户端运行在同一台主机（回环）——
 物理 DualSense → HidHide 隐藏 → DS5Hub hidapi 读取 → usbip 服务端(localhost:3240+N)
-→ usbipd-win 客户端 attach → Windows 出现完整功能的虚拟 DualSense → 游戏全功能识别。
+→ usbip-win2 客户端 attach → Windows 出现完整功能的虚拟 DualSense → 游戏全功能识别。
 
 注意：本模块只做检测和引导，不执行实际安装操作（需要用户手动确认）。
 """
@@ -129,30 +129,40 @@ class ComponentDetector:
             required=True,
         )
     
-    # ---- usbipd-win 检测 ----
+    # ---- usbip-win2 检测 ----
     @staticmethod
-    def check_usbipd_win() -> ComponentCheck:
-        """检查 usbipd-win 是否已安装（本机回环 attach 的 usbip 客户端 + vhci 驱动来源）。"""
+    def check_usbip_win2() -> ComponentCheck:
+        """检查 usbip-win2 是否已安装（本机回环 attach 的 USB/IP 客户端 + WHLK 签名 vhci 驱动来源）。"""
+        # 1) PATH 中的 usbip.exe
+        exe_found = False
         try:
             out = subprocess.run(
-                ["where", "usbipd"],
+                ["where", "usbip"],
                 capture_output=True, text=True, timeout=3,
                 encoding="utf-8", errors="replace")
             if out.returncode == 0 and out.stdout.strip():
-                return ComponentCheck(
-                    name="usbipd-win",
-                    status=ComponentStatus.INSTALLED,
-                    message="usbipd-win 已安装（usbip 客户端 + vhci 驱动）",
-                    required=True,
-                )
+                exe_found = True
         except Exception:
             pass
+        # 2) 标准安装目录 C:\Program Files\USBip\usbip.exe
+        if not exe_found:
+            pf = os.environ.get("PROGRAMFILES", r"C:\Program Files")
+            if os.path.isfile(os.path.join(pf, "USBip", "usbip.exe")):
+                exe_found = True
+
+        if not exe_found:
+            return ComponentCheck(
+                name="usbip-win2",
+                status=ComponentStatus.MISSING,
+                message="未发现 usbip-win2（本机 attach 虚拟手柄必需，提供 WHLK 签名 vhci 驱动，免测试模式）",
+                install_url="https://github.com/vadimgrn/usbip-win2/releases",
+                required=True,
+            )
 
         return ComponentCheck(
-            name="usbipd-win",
-            status=ComponentStatus.MISSING,
-            message="未发现 usbipd-win（本机 attach 虚拟手柄必需，提供 usbip 客户端与 vhci 驱动）",
-            install_url="https://github.com/dorssel/usbipd-win/releases",
+            name="usbip-win2",
+            status=ComponentStatus.INSTALLED,
+            message="usbip-win2 已安装（USB/IP 客户端 + WHLK 签名 vhci 驱动）",
             required=True,
         )
     
@@ -181,7 +191,7 @@ class ComponentDetector:
         """执行所有检测。"""
         results = {}
         results["hidhide"] = cls.check_hidhide()
-        results["usbipd"] = cls.check_usbipd_win()
+        results["usbip_win2"] = cls.check_usbip_win2()
         results["python"] = cls.check_python_env()
         return results
     

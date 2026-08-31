@@ -118,9 +118,9 @@ def main(host: str = "127.0.0.1", port: int = 3240):
     print(f"   CONFIG desc: len={actual} total={total_len} (端点: IN/OUT)")
     assert total_len == actual
 
-    # GET_DESCRIPTOR HID report
-    s.sendall(build_submit(next_seq(), DIR_IN, 0, 215,
-                           bytes([0x80, USB_REQ_GET_DESCRIPTOR, 0x00, 0x22, 0x00, 0x00, 0xD7, 0x00])))
+    # GET_DESCRIPTOR HID report（273 字节真实 DualSense USB 描述符）
+    s.sendall(build_submit(next_seq(), DIR_IN, 0, 273,
+                           bytes([0x80, USB_REQ_GET_DESCRIPTOR, 0x00, 0x22, 0x00, 0x00, 0x11, 0x01])))
     rhdr = recv_exact(s, 36)
     actual = struct.unpack_from(">I", rhdr, 32)[0]
     payload = recv_exact(s, actual)

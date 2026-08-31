@@ -6,12 +6,12 @@
 
 ## 一、最终使用流程（用户在目标机上的体验）
 
-1. 安装 DS5Hub（单 exe + 依赖组件，自动检测缺失并引导/静默安装 HidHide、usbipd-win）。
+1. 安装 DS5Hub（单 exe + 依赖组件，自动检测缺失并引导/静默安装 HidHide、usbip-win2）。
 2. 首次启动："引导向导"检测 → 安装驱动组件 → 配对蓝牙手柄。
 3. 常驻托盘，开机自启。Web 管理界面 http://127.0.0.1:8080（可配置、可局域网访问）。
 4. Web 界面显示所有手柄（名称/VID/PID/连接方式/状态）。一键"连接"→ 该手柄经
    标准 usbip 协议暴露；HidHide 自动隐藏真实手柄防双重输入，白名单放行本程序。
-5. 单机回环为主场景：本机 usbipd-win（usbip 客户端 + vhci 驱动）attach 本机
+5. 单机回环为主场景：本机 usbip-win2（usbip 客户端 + vhci 驱动）attach 本机
    服务端口，Windows 侧出现完整功能虚拟 DualSense（自适应扳机/触觉/灯效）；
    Linux usbip / 远程主机 attach 为扩展场景。
 6. 手柄断开自动重连；客户端断线自动清理；全程日志可查。
@@ -49,7 +49,7 @@
 - 每个物理手柄 = 一个"PadSlot"，含状态机：DISCONNECTED → CONNECTING →
   READY → EXPOSED(SERVICE_RUNNING)
 - 每个 READY 的槽位可独立：暴露 usbip 端口、attach、detach、隐藏（HidHide）
-- HidHide 按设备实例路径隐藏，白名单添加本程序 exe 路径与 usbipd 客户端
+- HidHide 按设备实例路径隐藏，白名单添加本程序 exe 路径与 usbip-win2 客户端
 
 ## 五、自动重连（M2）
 
@@ -76,7 +76,7 @@
 ## 八、部署（M3）
 
 - PyInstaller --onefile --noconsole，产物 ds5hub.exe
-- 组件包（HidHide，usbipd-win）以资源形式内置，首次运行引导安装
+- 组件包（HidHide，usbip-win2）以资源形式内置，首次运行引导安装
 - 打包命令：`pyinstaller --clean --noconfirm ds5hub.spec`
 
 ## 九、开发机（无驱动）测试策略
@@ -102,7 +102,7 @@
 - ⏳ 真实硬件联调（需待目标机环境）
 
 ### M3 📋（进行中）
-- ✅ 组件检测器（HidHide/usbipd-win/Python 环境）
+- ✅ 组件检测器（HidHide/usbip-win2/Python 环境）
 - ✅ PyInstaller 打包配置 (ds5hub.spec，单文件 + 内嵌 redist 驱动)
 - ✅ 命令行工具（--detect/--pack）
 - ⏳ 完整 URB 转发实测

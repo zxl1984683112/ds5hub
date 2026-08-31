@@ -4,7 +4,7 @@ PyInstaller 打包配置（单文件 Windows exe，无控制台、托盘常驻�
 
 内嵌内容：
   - ds5hub/web/static        Web 管理界面静态资源
-  - redist/                  官方组件安装包（HidHide_*.exe + usbipd-win_*.msi），
+  - redist/                  官方组件安装包（HidHide_*.exe + USBip-*-x64.exe），
                              供"一键环境部署"在本机释放使用
 
 使用方式：

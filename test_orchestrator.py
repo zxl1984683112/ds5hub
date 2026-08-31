@@ -51,7 +51,7 @@ def run_test():
         import time; time.sleep(0.1)
     st = orch.status()
     check("dry_run 全流程 -> DONE", st["state"] == "done", st)
-    check("installed 两项为真", st["installed"]["hidhide"] and st["installed"]["usbipd"], st["installed"])
+    check("installed 两项为真", st["installed"]["hidhide"] and st["installed"]["usbip_win2"], st["installed"])
     check("进度 100", st["progress"] == 100, st["progress"])
     check("verify 含 dry_run 标记", st["verify"].get("dry_run") is True, st["verify"])
 

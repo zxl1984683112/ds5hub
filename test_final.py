@@ -148,7 +148,7 @@ def run_test():
     r = client.get("/api/components")
     check("GET /components → 200", r.status_code == 200)
     comps = r.json()
-    check("components有hidhide/python/usbipd键", 
+    check("components有hidhide/python/usbip_win2键", 
           "hidhide" in comps or "python" in comps,
           f"keys={list(comps.keys())}")
     
