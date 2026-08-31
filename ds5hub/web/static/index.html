@@ -414,7 +414,7 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--muted);border-t
         <ol class="step-list">
           <li><strong>下载 DS5Hub</strong> — 获取最新发布的 ds5hub.exe（单文件，免安装）或解压压缩包。</li>
           <li><strong>首次运行</strong> — 双击 ds5hub.exe，会自动弹出浏览器打开管理面板。<br>如使用命令行：<code>python main.py</code></li>
-          <li><strong>安装引导</strong> — 在「设置」页点击「组件检测」，根据提示安装缺失的驱动。</li>
+          <li><strong>一键环境部署</strong> — 在「设置」页的组件检测卡片点击「🚀 一键环境部署」，DS5Hub 会自动下载并静默安装 HidHide 与 usbipd-win 官方组件（全程仅 1 次 UAC 确认，安装来源为官方原封 MSI）。也可按组件卡片提示手动下载安装。</li>
         </ol>
         <div class="guide-tip"><strong>💡 提示：</strong>命令行参数<br><code>--tray</code> 托盘后台启动 | <code>--web-only</code> 仅 Web | <code>--detect</code> 组件检测退出 | <code>--pack</code> 生成安装脚本</div>
       </div>
@@ -426,7 +426,7 @@ footer{text-align:center;padding:16px;font-size:12px;color:var(--muted);border-t
           <li><strong>启动 DS5Hub</strong> — 程序自动检测已连接的手柄（USB/蓝牙均可识别）。在「手柄管理」页确认列表。</li>
           <li><strong>添加白名单</strong> — 回到仪表盘点击「一键添加白名单」或将 exe 添加到 HidHide 白名单。</li>
           <li><strong>隐藏真实手柄</strong> — 点击对应手柄卡片上的「隐藏」按钮，使系统不再直接读取该手柄。</li>
-          <li><strong>客户端连接（本机回环）</strong> — 安装 usbipd-win 后，以管理员身份执行：<code>usbip attach -r 127.0.0.1 -b 1-X</code>。Windows 将出现完整功能的虚拟 DualSense（自适应扳机/触觉/灯效全保留），游戏直接识别。</li>
+          <li><strong>客户端连接（本机回环）</strong> — 完成「一键环境部署」后，DS5Hub 会<strong>自动</strong>对每只手柄执行 <code>usbip attach</code>，Windows 立即出现完整功能的虚拟 DualSense（自适应扳机/触觉/灯效全保留），游戏直接识别。若自动 attach 失败（如未以管理员运行），可在手柄卡片手动重试，或手动执行：<code>usbip attach -r 127.0.0.1 -b 1-X</code>。</li>
         </ol>
       </div>
       <div class="guide-section">
