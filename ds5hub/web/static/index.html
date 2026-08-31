@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DS5Hub 管理面板</title>
+<style>
+/* ===== CSS Variables & Reset ===== */
+:root {
+  --bg:#0f1420;--card:#1a2133;--border:#2a3350;--text:#e6e9f2;--muted:#8a93ab;
+  --accent:#3b82f6;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--cyan:#06b6d4;
+  --blue-glow:rgba(59,130,246,.25);--green-glow:rgba(34,197,94,.25);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+/* ===== Header ===== */
+header{display:flex;align-items:center;gap:14px;padding:16px 24px;background:var(--card);border-bottom:1px solid var(--border);}
+.sys-dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green-glow);transition:.3s;}
+.sys-dot.offline{background:var(--red);box-shadow:0 0 6px rgba(239,68,68,.3);}
+header h1{font-size:20px;font-weight:700;letter-spacing:.5px;}
+.mode-tag{font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(138,147,171,.12);color:var(--muted);font-weight:600;}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:10px;}
+.header-btn{background:transparent;border:1px solid var(--border);color:var(--muted);padding:5px 14px;border-radius:8px;cursor:pointer;font-size:13px;transition:.15s;}
+.header-btn:hover{border-color:var(--accent);color:var(--text);}
+#logLevelTag{font-size:12px;color:var(--muted);}
+
+/* ===== Tabs ===== */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--card);padding:0 24px;overflow-x:auto;}
+.tab{padding:10px 20px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:.2s;white-space:nowrap;user-select:none;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+
+/* ===== Layout ===== */
+.container{max-width:1200px;margin:0 auto;padding:24px;}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;transition:border-color .2s;}
+.card:hover{border-color:rgba(59,130,246,.3);}
+.card-title{font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.card-title .icon{font-size:16px;}
+.stat-row{display:flex;gap:20px;}
+.stat-item{flex:1;text-align:center;}
+.stat-num{font-size:32px;font-weight:700;line-height:1;}
+.stat-lbl{font-size:12px;color:var(--muted);margin-top:4px;}
+
+/* ===== Pad Cards ===== */
+.pad-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;}
+.pad-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;position:relative;overflow:hidden;}
+.pad-card.status-ready{border-left:3px solid var(--green);}
+.pad-card.status-disconnected{border-left:3px solid var(--muted);}
+.pad-card.status-error{border-left:3px solid var(--red);}
+.pad-card.status-connecting{border-left:3px solid var(--yellow);}
+.pad-top{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+.pad-icon{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#2d3748,#1a202c);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.pad-name{font-size:15px;font-weight:600;}
+.pad-meta{font-size:12px;color:var(--muted);margin-top:2px;}
+.pad-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;}
+.pad-field{font-size:12px;color:var(--muted);}
+.pad-field span{color:var(--text);font-weight:500;}
+.pad-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.btn{background:var(--accent);color:white;border:none;border-radius:8px;padding:7px 16px;font-size:13px;cursor:pointer;transition:.15s;font-weight:500;}
+.btn:hover{filter:brightness(1.15);transform:translateY(-1px);}
+.btn:active{transform:translateY(0);}
+.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--muted);}
+.btn.ghost:hover{border-color:var(--accent);color:var(--text);}
+.btn.sm{padding:4px 10px;font-size:12px;}
+.btn.danger{background:var(--red);}
+.btn.success{background:var(--green);}
+.btn.cyan{background:var(--cyan);}
+.btn.cyan:hover{filter:brightness(1.15);}
+.btn[disabled]{opacity:.4;cursor:not-allowed;transform:none!important;}
+
+/* ===== Badge ===== */
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge.ok{background:rgba(34,197,94,.12);color:var(--green);}
+.badge.warn{background:rgba(234,179,8,.12);color:var(--yellow);}
+.badge.err{background:rgba(239,68,68,.12);color:var(--red);}
+.badge.idle{background:rgba(138,147,171,.12);color:var(--muted);}
+.badge-dot{width:6px;height:6px;border-radius:50%;}
+.badge.ok .badge-dot{background:var(--green);box-shadow:0 0 4px var(--green);}
+.badge.warn .badge-dot{background:var(--yellow);animation:blink 1s infinite;}
+.badge.err .badge-dot{background:var(--red);box-shadow:0 0 4px var(--red);}
+.badge.idle .badge-dot{background:var(--muted);}
+@keyframes blink{50%{opacity:.4;}}
+
+/* ===== Config & Settings ===== */
+.config-row{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:10px;}
+.field{display:flex;flex-direction:column;gap:4px;}
+.field label{font-size:12px;color:var(--muted);}
+.field input{background:#0b0f18;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:13px;width:100%;}
+.switch-wrap{display:flex;align-items:center;gap:12px;}
+.switch{position:relative;width:44px;height:24px;display:inline-block;}
+.switch input{opacity:0;width:0;height:0;}
+.slider{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:24px;transition:.25s;}
+.slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;top:3px;background:white;border-radius:50%;transition:.25s;}
+input:checked+.slider{background:var(--green);}
+input:checked+.slider:before{transform:translateX(20px);}
+.hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;}
+
+/* ===== Log Box ===== */
+.logbox{background:#080c14;border:1px solid var(--border);border-radius:10px;padding:12px;max-height:360px;overflow-y:auto;font-family:Consolas,'Courier New',monospace;font-size:12px;line-height:1.6;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.logbox::-webkit-scrollbar{width:6px;}
+.logbox::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.log-entry{padding:2px 0;border-bottom:1px solid rgba(42,51,80,.3);}
+.log-time{color:#4a5568;}
+.log-level-INFO{color:#60a5fa;}
+.log-level-WARN{color:var(--yellow);}
+.log-level-ERROR,.log-level-CRITICAL{color:var(--red);}
+.log-level-DEBUG{color:#64748b;}
+.log-msg{color:var(--text);}
+
+/* ===== User Guide Modal ===== */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.show{display:flex;}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:780px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--border);}
+.modal-header h2{font-size:18px;font-weight:700;}
+.modal-close{background:transparent;border:none;color:var(--muted);font-size:24px;cursor:pointer;padding:4px 8px;border-radius:6px;transition:.15s;}
+.modal-close:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.modal-body{padding:24px;}
+.guide-section{margin-bottom:24px;}
+.guide-section:last-child{margin-bottom:0;}
+.guide-section h3{font-size:15px;font-weight:700;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.guide-section h4{font-size:13px;font-weight:600;color:var(--text);margin:10px 0 6px;}
+.guide-section p,.guide-section li{font-size:13px;color:var(--muted);line-height:1.7;}
+.guide-section ul{padding-left:20px;}
+.guide-section li{margin-bottom:4px;}
+.guide-section code{background:#0b0f18;border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-family:Consolas,monospace;font-size:12px;color:#93c5fd;}
+.guide-section pre{background:#080c14;border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;font-size:12px;margin:8px 0;}
+.guide-section pre code{background:none;border:none;padding:0;}
+.guide-tip{background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:8px;padding:10px 14px;font-size:13px;margin:8px 0;}
+.guide-tip strong{color:var(--accent);}
+.guide-warn{background:rgba(234,179,8,.06);border:1px solid rgba(234,179,8,.15);border-radius:8px;padding:10px 14px;font-size:13px;margin:8px 0;}
+.guide-warn strong{color:var(--yellow);}
+.step-list{counter-reset:step;list-style:none;padding:0;}
+.step-list li{counter-increment:step;padding:8px 0 8px 40px;position:relative;font-size:13px;}
+.step-list li::before{content:counter(step);position:absolute;left:0;top:8px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:white;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+
+/* ===== HidHide Section ===== */
+.hidhide-status{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.hidhide-bar{display:flex;gap:8px;flex-wrap:wrap;}
+
+/* ===== Empty State ===== */
+.empty{color:var(--muted);font-size:14px;text-align:center;padding:40px 20px;}
+
+/* ===== Footer ===== */
+footer{text-align:center;padding:16px;font-size:12px;color:var(--muted);border-top:1px solid var(--border);margin-top:32px;}
+
+@media(max-width:768px){.grid{grid-template-columns:1fr;}.pad-cards{grid-template-columns:1fr;}.stat-row{gap:12px;}.header-btn span.hide-mobile{display:none;}}
+
+/* ================================================================
+   GAMEPAD TESTER — Full-screen overlay tab (P1 deliverable)
+   ================================================================ */
+#tab-gamepad{padding:0;}
+.gp-wrapper{display:flex;flex-direction:column;height:calc(100vh - 110px);}
+
+/* -- Toolbar -- */
+.gp-toolbar{display:flex;align-items:center;gap:12px;padding:14px 24px;background:var(--card);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.gp-toolbar h2{font-size:16px;font-weight:700;margin-right:auto;}
+.gp-toolbar select,.gp-toolbar button{height:34px;font-size:13px;}
+
+/* -- Mode switcher -- */
+.mode-switch{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.mode-switch button{background:transparent;border:none;color:var(--muted);padding:6px 16px;cursor:pointer;font-size:13px;font-weight:600;transition:.15s;}
+.mode-switch button.active{background:var(--accent);color:white;}
+
+/* -- Gamepad Display Area -- */
+.gp-display{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;gap:24px;overflow-y:auto;}
+
+/* -- Connection card -- */
+.gp-connect{display:flex;flex-direction:column;align-items:center;gap:20px;padding:40px;text-align:center;}
+.gp-connect .logo{font-size:80px;opacity:.6;}
+.gp-connect h3{font-size:20px;}
+.gp-connect p{color:var(--muted);max-width:360px;line-height:1.6;}
+
+/* -- Controller SVG view -- */
+.gp-controller-area{display:flex;flex-direction:column;align-items:center;gap:24px;}
+.ds5-svg-container{position:relative;width:620px;max-width:90vw;}
+.ds5-svg-container svg{width:100%;height:auto;filter:drop-shadow(0 4px 20px rgba(59,130,246,.15));}
+
+/* -- Button presses on SVG -- */
+.ds5-btn{transition:fill .08s,stroke .08s;}
+.ds5-btn.pressed{fill:var(--accent)!important;stroke:var(--accent)!important;}
+.ds5-trigger{transition:fill .1s;}
+.ds5-trigger.triggered{fill:#6366f1!important;}
+.ds5-axis-line{transition:stroke .1s;}
+.ds5-axis-line.active{stroke:var(--cyan);stroke-width:2;}
+
+/* -- Side panels -- */
+.gp-sides{display:flex;gap:16px;flex:1;overflow:hidden;min-height:0;}
+.gp-side-panel{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;overflow-y:auto;padding-right:4px;}
+
+/* -- Sensor readouts -- */
+.sensor-group{background:rgba(11,15,24,.5);border:1px solid var(--border);border-radius:10px;padding:12px;}
+.sensor-group h4{font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;}
+.sensor-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:2px 0;}
+.sensor-val{font-family:Consolas,monospace;font-weight:600;color:var(--cyan);}
+
+/* -- Stick visualization -- */
+.stick-viz{display:flex;justify-content:center;padding:8px 0;}
+.stick-pad{width:120px;height:120px;border-radius:50%;border:2px solid var(--border);position:relative;background:rgba(0,0,0,.2);}
+.stick-pad .cross-h,.stick-pad .cross-v{position:absolute;background:rgba(255,255,255,.08);}
+.stick-pad .cross-h{top:50%;left:0;right:0;height:1px;transform:translateY(-50%);}
+.stick-pad .cross-v{left:50%;top:0;bottom:0;width:1px;transform:translateX(-50%);}
+.stick-pad .dot{width:16px;height:16px;border-radius:50%;background:var(--accent);position:absolute;transform:translate(-50%,-50%);transition:left .06s,top .06s;box-shadow:0 0 8px var(--blue-glow);}
+
+/* -- Trigger bars -- */
+.trigger-bars{display:flex;gap:16px;justify-content:center;margin:8px 0;}
+.trigger-bar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.trigger-bar-wrap label{font-size:11px;color:var(--muted);font-weight:600;}
+.trigger-bar{width:20px;height:80px;background:#0b0f18;border:1px solid var(--border);border-radius:4px;position:relative;overflow:hidden;}
+.trigger-bar .fill{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(to top,var(--accent),var(--cyan));transition:height .06s;}
+
+/* -- Lightbar -- */
+.lightbar-preview{width:200px;height:8px;border-radius:4px;background:#1a2133;margin:0 auto;transition:background .3s;box-shadow:0 0 12px currentColor;}
+
+/* -- Rumble meter -- */
+.rumble-meter{width:100%;height:6px;background:#0b0f18;border-radius:3px;overflow:hidden;}
+.rumble-meter .fill{height:100%;background:linear-gradient(90deg,var(--yellow),var(--red));transition:width .1s;}
+
+/* -- Axis graph -- */
+.axis-graph{width:100%;height:60px;background:#080c14;border-radius:6px;margin-top:8px;}
+
+/* -- Responsive -- */
+@media(max-width:900px){
+  .gp-sides{flex-direction:column;}
+  .ds5-svg-container{width:95vw;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================== HEADER ============================== -->
+<header>
+  <div class="sys-dot" id="statusDot"></div>
+  <h1>DS5Hub</h1>
+  <span class="mode-tag" id="modeTag">初始化中…</span>
+  <div class="header-right">
+    <span id="logLevelTag">日志级别: —</span>
+    <button class="header-btn" onclick="showGuide()">📖 用户指南</button>
+    <button class="header-btn" onclick="refreshAll()">↻ <span class="hide-mobile">刷新</span></button>
+  </div>
+</header>
+
+<!-- ============================== TABS ============================== -->
+<div class="tabs">
+  <div class="tab active" data-tab="dashboard">仪表盘</div>
+  <div class="tab" data-tab="handles">手柄管理</div>
+  <div class="tab" data-tab="gamepad">🎮 手柄测试</div>
+  <div class="tab" data-tab="settings">设置</div>
+  <div class="tab" data-tab="logs">日志</div>
+</div>
+
+<!-- ============================== DASHBOARD ============================== -->
+<div class="tab-content active" id="tab-dashboard">
+  <div class="container">
+    <div class="grid">
+      <div class="card">
+        <div class="card-title"><span class="icon">📊</span>运行概览</div>
+        <div class="stat-row">
+          <div class="stat-item"><div class="stat-num" id="padCount">—</div><div class="stat-lbl">已发现手柄</div></div>
+          <div class="stat-item"><div class="stat-num" id="srvCount">—</div><div class="stat-lbl">USB/IP 服务</div></div>
+          <div class="stat-item"><div class="stat-num" id="clientTotal">—</div><div class="stat-lbl">客户端连接</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">💻</span>系统信息</div>
+        <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">模式</span><span id="sysMode">—</span></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">Web 地址</span><span id="sysWeb">—</span></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">端口范围</span><span id="sysPorts">—</span></div>
+          <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted)">版本</span><span>v0.1.0</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">⚡</span>快捷操作</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button class="btn" onclick="quickAction('whitelist')" style="width:100%">🔓 一键添加白名单（HidHide）</button>
+          <button class="btn ghost" onclick="quickAction('check_hide')" style="width:100%">🔍 检查设备隐藏状态</button>
+          <button class="btn danger" onclick="quickAction('unhide_all')" style="width:100%">🔄 取消所有隐藏</button>
+        </div>
+        <div class="hint" style="margin-top:10px;" id="hhHint">需先安装 HidHide 驱动且服务正常运行。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== HANDLE MANAGEMENT ============================== -->
+<div class="tab-content" id="tab-handles">
+  <div class="container">
+    <div class="pad-cards" id="padCards"><div class="empty">正在加载手柄信息…</div></div>
+  </div>
+</div>
+
+<!-- ============================== GAMEPAD TESTER ============================== -->
+<div class="tab-content" id="tab-gamepad">
+  <iframe src="/static/controller_test.html" style="width:100%;height:calc(100vh - 120px);border:none;display:block;" title="手柄测试中心"></iframe>
+</div>
+
+<!-- ============================== SETTINGS ============================== -->
+<div class="tab-content" id="tab-settings">
+  <div class="container">
+    <div class="grid">
+      <div class="card">
+        <div class="card-title"><span class="icon">🔌</span>USB/IP 配置</div>
+        <div class="config-row">
+          <div class="field" style="flex:2"><label>监听地址</label><input type="text" id="cfgUsbipHost" placeholder="0.0.0.0"></div>
+          <div class="field" style="flex:1"><label>基础端口</label><input type="number" id="cfgBasePort" placeholder="3240"></div>
+        </div>
+        <button class="btn" onclick="saveConfig()">保存配置</button>
+        <div class="hint">修改后需要重启 DS5Hub 生效。</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">🔒</span>安全认证</div>
+        <div class="config-row">
+          <div class="field"><label>Bearer Token</label><input type="text" id="cfgToken" placeholder="留空则不鉴权"></div>
+        </div>
+        <button class="btn" onclick="saveToken()">保存 Token</button>
+        <div class="hint">设置后访问 API 需要附带 Authorization: Bearer &lt;token&gt; 请求头。</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">🚀</span>开机自启</div>
+        <div class="switch-wrap">
+          <label class="switch"><input type="checkbox" id="autostartToggle" onchange="setAutostart()"><span class="slider"></span></label>
+          <span id="autostartLabel" style="font-size:13px;color:var(--muted)">加载中…</span>
+        </div>
+        <div class="hint">启用后 DS5Hub 将在登录时自动启动并最小化到系统托盘。</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">🔄</span>自动重连</div>
+        <div class="switch-wrap" style="margin-bottom:10px;">
+          <label class="switch"><input type="checkbox" id="reconnectToggle" checked onchange="toggleReconnect()"><span class="slider"></span></label>
+          <span style="font-size:13px;color:var(--muted)">启用自动重连</span>
+        </div>
+        <div class="config-row">
+          <div class="field"><label>初始延迟 (秒)</label><input type="number" id="reconnectDelay" value="3" min="1" max="60"></div>
+          <div class="field"><label>最大延迟 (秒)</label><input type="number" id="reconnectMaxDelay" value="30" min="5" max="120"></div>
+        </div>
+        <button class="btn" onclick="saveReconnect()">保存重连策略</button>
+        <div class="hint">手柄掉线后自动重试，退避间隔从初始值逐渐增加到最大值。</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">🎮</span>HidHide 状态</div>
+        <div class="hidhide-status"><span id="hhStatusBadge" class="badge idle"><span class="badge-dot"></span>检测中…</span></div>
+        <div class="hint" id="hhStatusMsg">正在检测 HidHide 驱动状态…</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="icon">🧩</span>组件检测</div>
+        <div id="componentsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== LOGS ============================== -->
+<div class="tab-content" id="tab-logs">
+  <div class="container">
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between;">
+        <span><span class="icon">📋</span>日志</span>
+        <div style="display:flex;gap:8px;">
+          <select id="logLevel" onchange="setLogLevel()" style="padding:4px 8px;font-size:12px;background:#0b0f18;border:1px solid var(--border);color:var(--text);border-radius:6px;">
+            <option value="">全部级别</option><option value="DEBUG">DEBUG</option><option value="INFO">INFO</option><option value="WARN">WARN</option><option value="ERROR">ERROR</option>
+          </select>
+          <button class="btn sm ghost" onclick="loadLogs()">刷新</button>
+          <button class="btn sm ghost" onclick="exportLogs()">导出</button>
+        </div>
+      </div>
+      <div class="logbox" id="logBox"><div class="empty">加载中…</div></div>
+    </div>
+  </div>
+</div>
+
+<footer>DS5Hub v0.1.0 — DualSense USB/IP Hub</footer>
+
+<!-- ============================== USER GUIDE MODAL ============================== -->
+<div class="modal-overlay" id="guideModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>📖 用户指南</h2>
+      <button class="modal-close" onclick="hideGuide()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="guide-section">
+        <h3>📦 一、安装说明</h3>
+        <ol class="step-list">
+          <li><strong>下载 DS5Hub</strong> — 获取最新发布的 ds5hub.exe（单文件，免安装）或解压压缩包。</li>
+          <li><strong>首次运行</strong> — 双击 ds5hub.exe，会自动弹出浏览器打开管理面板。<br>如使用命令行：<code>python main.py</code></li>
+          <li><strong>安装引导</strong> — 在「设置」页点击「组件检测」，根据提示安装缺失的驱动。</li>
+        </ol>
+        <div class="guide-tip"><strong>💡 提示：</strong>命令行参数<br><code>--tray</code> 托盘后台启动 | <code>--web-only</code> 仅 Web | <code>--detect</code> 组件检测退出 | <code>--pack</code> 生成安装脚本</div>
+      </div>
+      <div class="guide-section">
+        <h3>🎯 二、基本使用流程</h3>
+        <ol class="step-list">
+          <li><strong>配对蓝牙手柄</strong> — 在 Windows 设置中添加 Bluetooth 设备，选择「Wireless Controller」完成配对。</li>
+          <li><strong>USB 有线连接</strong> — 使用数据线将手柄连接到电脑 USB 口。</li>
+          <li><strong>启动 DS5Hub</strong> — 程序自动检测已连接的手柄（USB/蓝牙均可识别）。在「手柄管理」页确认列表。</li>
+          <li><strong>添加白名单</strong> — 回到仪表盘点击「一键添加白名单」或将 exe 添加到 HidHide 白名单。</li>
+          <li><strong>隐藏真实手柄</strong> — 点击对应手柄卡片上的「隐藏」按钮，使系统不再直接读取该手柄。</li>
+          <li><strong>客户端连接</strong> — 在 Linux 上执行：<code>usbip attach -r 127.0.0.1 -b 1-X</code></li>
+        </ol>
+      </div>
+      <div class="guide-section">
+        <h3>⚙️ 三、HidHide 详细说明</h3>
+        <h4>什么是 HidHide？</h4>
+        <p>HidHide 是一个开源 HID 过滤驱动，允许你将指定设备隐藏起来，只让白名单内的应用程序可见。在 DS5Hub 场景中，它确保手柄信号不会被游戏或其他程序抢占。</p>
+        <h4>安装步骤</h4>
+        <pre><code>1. 下载: https://github.com/nefarius/HidHide/releases
+2. 以管理员身份运行安装包
+3. 重启电脑
+4. 使用 DS5Hub 进行后续配置（自动引导）</code></pre>
+        <h4>操作方式</h4>
+        <ul><li><strong>白名单</strong> — 将 DS5Hub 的 exe 路径注册到 HidHide，使其有权限操作隐藏设备。</li><li><strong>隐藏设备</strong> — 通过 HidHideCLI 将手柄 GUID 加入隐藏列表，游戏将无法直接检测到它。</li><li><strong>取消隐藏</strong> — 在需要调试时可以一键恢复所有设备可见性。</li></ul>
+        <div class="guide-warn"><strong>⚠️ 注意：</strong>HidHide 需要管理员权限安装和运行。如果安装失败，请右键以"管理员身份运行"。</div>
+      </div>
+      <div class="guide-section">
+        <h3>🧪 四、🎮 手柄测试页使用指南（新增）</h3>
+        <p>切换到顶部导航栏的 <strong>「🎮 手柄测试」</strong> 标签页即可进入测试界面。这是参考 <a href="https://github.com/daidr/dualsense-tester" target="_blank" style="color:var(--accent)">dualsense-tester</a> 项目编写的内置测试工具。</p>
+        <h4>功能清单</h4>
+        <ul>
+          <li>🕹️ <strong>摇杆追踪</strong> — 实时可视化 L/R 摇杆位置（十字准心 + 运动圆点）</li>
+          <li>⬆️⬇️⬅️➡️ <strong>D-Pad</strong> — 四方向按键按下高亮显示</li>
+          <li>⭕△□✕◻ <strong>面键</strong> — 三角/方块/X/圆圈四个按键可视化反馈</li>
+          <li>🔽 <strong>L2 / R2 扳机</strong> — 自适应扳机的按压深度进度条，支持 WebHID 力度反馈</li>
+          <li>📱 <strong>触控板</strong> — 触摸坐标实时显示和触点计数</li>
+          <li>🌀 <strong>IMU 传感器</strong> — 陀螺仪（XYZ 角速度）+ 加速度计（XYZ）实时数值</li>
+          <li>💫 <strong>震动马达</strong> — 发送测试震动脉冲，观察手柄反馈</li>
+          <li>💡 <strong>灯带控制</strong> — 自定义 RGB 颜色发送给手柄灯带，页面预览同步更新</li>
+          <li>🔋 <strong>电池监测</strong> — 电量和充电状态实时更新</li>
+          <li>📋 <strong>输入事件记录</strong> — 所有输入事件的详细时间戳日志，可导出 TXT</li>
+        </ul>
+        <h4>两种模式</h4>
+        <ul>
+          <li><strong>WebHID 模式</strong> — 通过浏览器 WebHID API 直连手柄，可以 <em>读取 AND 写入</em>（震动/灯光等输出）</li>
+          <li><strong>输入记录模式</strong> — 通过游戏手柄接口读取输入数据，适合简单验证连接</li>
+        </ul>
+        <div class="guide-tip"><strong>💡 要求：</strong>WebHID 功能需要在 Chromium 内核浏览器（Chrome/Edge）中使用，Firefox 需要安装 WebHID 扩展。</div>
+      </div>
+      <div class="guide-section">
+        <h3>💻 五、Linux 客户端用法</h3>
+        <h4>方法一：使用 usbip 工具链</h4>
+        <pre><code># 列出服务端可用设备
+usbip list -r 127.0.0.1
+
+# 绑定目标设备（busid 在 Web 面板查看）
+sudo modprobe vhci-hcd
+usbip attach -r 127.0.0.1 -b 1-1</code></pre>
+        <h4>方法二：使用 xboxdrv</h4>
+        <pre><code>xboxdrv --udp-prefix "" --udp-host 127.0.0.1 --udp-port 22255</code></pre>
+      </div>
+      <div class="guide-section">
+        <h3>🔧 六、常见问题排查</h3>
+        <h4>Q: 找不到手柄怎么办？</h4>
+        <ul><li>确认手柄已通过蓝牙或 USB 正确连接到电脑。</li><li>在 Windows「蓝牙和其他设备」中确认手柄已配对且状态为"已连接"。</li><li>尝试拔掉重插（USB 模式）或在设置中重新配对（蓝牙）。</li></ul>
+        <h4>Q: 游戏依然能检测到原始手柄？</h4>
+        <ul><li>确认 HidHide 驱动已经正确安装并处于运行状态（服务名为 NefariusHidHide）。</li><li>确认已将游戏的可执行文件 (.exe) 添加到 HidHide 白名单中。</li><li>确认已在 DS5Hub 中对目标手柄执行了"隐藏"操作。</li></ul>
+        <h4>Q: Linux 客户端无法连接？</h4>
+        <ul><li>确认防火墙已开放对应的 USB/IP 端口（默认 3240+）。</li><li>确认 <code>usbip</code> 版本与服务器端兼容（建议使用 2.0+）。</li></ul>
+      </div>
+      <div class="guide-section">
+        <h3>⚡ 七、性能参数调优</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;">
+          <tr style="border-bottom:1px solid var(--border);"><th style="text-align:left;padding:6px;color:var(--muted);">参数</th><th style="text-align:left;padding:6px;color:var(--muted);">默认值</th><th style="text-align:left;padding:6px;color:var(--muted);">说明</th></tr>
+          <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;">usbip_host</td><td style="padding:6px;">0.0.0.0</td><td style="padding:6px;color:var(--muted);">监听地址，局域网访问改为 0.0.0.0</td></tr>
+          <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;">usbip_base_port</td><td style="padding:6px;">3240</td><td style="padding:6px;color:var(--muted);">每手柄分配连续端口</td></tr>
+          <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px;">reconnect.initial_delay</td><td style="padding:6px;">3s</td><td style="padding:6px;color:var(--muted);">掉线后首次重连前的等待时间</td></tr>
+          <tr><td style="padding:6px;">web_token</td><td style="padding:6px;">(空)</td><td style="padding:6px;color:var(--muted);">API 鉴权密钥</td></tr>
+        </table>
+      </div>
+      <div class="guide-section">
+        <h3>🗑️ 八、卸载与清除</h3>
+        <ol class="step-list">
+          <li><strong>取消 HidHide 隐藏</strong> — 在 DS5Hub 仪表盘点击「取消所有隐藏」。</li>
+          <li><strong>关闭 DS5Hub</strong> — 右键托盘图标 → 退出。</li>
+          <li><strong>移除 HidHide 驱动</strong> — Windows「应用和功能」中找到 HidHide 并卸载。</li>
+          <li><strong>清理残留</strong> — 删除 <code>%APPDATA%\DS5Hub\</code> 下的配置文件。</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================== JAVASCRIPT ============================== -->
+<script>
+/* ---- Globals ---- */
+let cfg = {}, latestStatus = null;
+let gpDevice = null, gpMode = 'webhid';
+const gpEvents = []; // input event log for test tab
+
+/* ---- Utility ---- */
+const j = url => fetch(url, {headers:{'Content-Type':'application/json'}}).then(r=>{if(!r.ok) throw new Error(r.status+' '+r.statusText); return r.json();});
+const esc = s => String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const stateInfo = st => {
+  const m = {ready:'ok',exposed:'ok',running:'ok',disconnected:'idle',connecting:'warn',error:'err'};
+  const l = {ready:'就绪',exposed:'暴露中',running:'运行中',disconnected:'未连接',connecting:'连接中...',error:'出错'};
+  return {cls:m[st]||'idle', label:l[st]||st};
+};
+
+/* ---- Tab Navigation ---- */
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(tc=>tc.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+    if(tab.dataset.tab==='gamepad') initGamepadTab();
+  });
+});
+
+/* ---- Global Refresh ---- */
+async function refreshStatus(){
+  try {
+    latestStatus = await j('/api/status');
+    const s = latestStatus;
+    document.getElementById('statusDot').className='sys-dot'+(s.status==='running'?'':' offline');
+    document.getElementById('modeTag').textContent=s.mode==='simulated'?'🟡 模拟模式':'🔵 真实模式';
+    document.getElementById('padCount').textContent=s.pads.length;
+    document.getElementById('srvCount').textContent=s.pads.filter(p=>p.port>0).length;
+    document.getElementById('clientTotal').textContent=s.pads.reduce((a,p)=>a+(p.client_count||0),0);
+    document.getElementById('sysMode').textContent=s.mode==='simulated'?'开发模拟':'真实手柄';
+    document.getElementById('sysWeb').textContent=(s.config?.web_host||'127.0.0.1')+':'+(s.config?.web_port||8080);
+    const bp=s.config?.usbip_base_port||3240;
+    document.getElementById('sysPorts').textContent=`${bp}~${bp+s.pads.length}`;
+    document.getElementById('logLevelTag').textContent='日志级别: '+s.log_level;
+    document.getElementById('logLevel').value='';
+    cfg=s.config||{};
+    document.getElementById('cfgUsbipHost').value=cfg.usbip_host||'0.0.0.0';
+    document.getElementById('cfgBasePort').value=cfg.usbip_base_port||3240;
+    document.getElementById('cfgToken').value=cfg.web_token||'';
+    document.getElementById('reconnectDelay').value=cfg.reconnect?.initial_delay||3;
+    document.getElementById('reconnectMaxDelay').value=cfg.reconnect?.max_delay||30;
+    renderPads(s.pads);renderComponents(s.components||{});
+    const hh=s.hidhide;
+    if(hh){
+      const badge=document.getElementById('hhStatusBadge');
+      badge.className='badge '+(hh.status==='ok'?'ok':hh.status==='service_not_running'?'warn':'err');
+      badge.innerHTML=`<span class="badge-dot"></span>${{ok:'已就绪',service_not_running:'服务未运行',not_installed:'未安装',device_not_hidden:'部分隐藏'}[hh.status]||hh.status}`;
+      document.getElementById('hhStatusMsg').textContent=hh.message||'—';
+    }
+    document.getElementById('reconnectToggle').checked=s.reconnector?.enabled??true;
+  } catch(e){console.error(e);}
+}
+
+function renderPads(pads){
+  const el=document.getElementById('padCards');
+  if(!pads.length){el.innerHTML='<div class="empty">未发现手柄<br><small style="color:var(--muted)">请将手柄通过 USB 或蓝牙连接至电脑</small></div>';return;}
+  el.innerHTML=pads.map(p=>{
+    const si=stateInfo(p.state);
+    const connIcon=p.connection==='bluetooth'?'📶':p.connection==='usb'?'🔌':'💻';
+    return `<div class="pad-card status-${p.state}">
+      <div class="pad-top"><div class="pad-icon">🎮</div>
+        <div style="flex:1;"><div class="pad-name">${esc(p.name)}</div><div class="pad-meta">${connIcon} ${esc(p.connection)} · ${esc(p.busid)}</div></div>
+        <span class="badge ${si.cls}"><span class="badge-dot"></span>${si.label}</span></div>
+      <div class="pad-grid">
+        <div class="pad-field">VID:PID <span>${esc(p.vid)}:${esc(p.pid)}</span></div>
+        <div class="pad-field">端口 <span>${p.port||'—'}</span></div>
+        <div class="pad-field">Serial <span>${esc(p.serial).slice(0,8)||'—'}</span></div>
+        <div class="pad-field">客户端数 <span>${p.client_count||0}</span></div>
+      </div>
+      ${p.last_error?`<div style="font-size:11px;color:var(--red);margin-bottom:8px;">⚠ ${esc(p.last_error)}</div>`:''}
+      <div class="pad-actions">
+        <button class="btn sm ${p.state==='ready'||p.state==='exposed'?'danger':''}" onclick="padAction('${p.pad_id}','${p.state==='ready'||p.state==='exposed'?'disconnect':'connect'}')">${p.state==='ready'||p.state==='exposed'?'断开':'连接'}</button>
+        <button class="btn sm ghost" onclick="padAction('${p.pad_id}','reconnect')">重连</button>
+        <button class="btn sm ghost" onclick="hidePad('${p.pad_id}')">隐藏</button>
+      </div></div>`;
+  }).join('');
+}
+
+function renderComponents(comp){
+  const el=document.getElementById('componentsList');
+  if(!Object.keys(comp).length){el.innerHTML='<div class="empty">暂无数据</div>';return;}
+  const emojis={installed:'✅',missing:'❌',update_required:'⚠️',partial:'🟡'};
+  el.innerHTML=Object.values(comp).map(c=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
+      <span style="font-size:14px;">${emojis[c.status]||'❓'}</span>
+      <div style="flex:1;"><div style="font-size:13px;font-weight:500;">${esc(c.name)}</div><div style="font-size:11px;color:var(--muted);">${esc(c.message)}${c.required?'':'（可选）'}</div></div>
+      <span class="badge ${c.status==='installed'?'ok':c.status==='partial'?'warn':'err'}">${c.status}</span>
+      ${c.install_url?`<a href="${esc(c.install_url)}" target="_blank" class="btn sm ghost" style="text-decoration:none;">下载</a>`:''}
+    </div>`).join('');
+}
+
+async function padAction(id,action){await j(`/api/pads/${id}/action`,{method:'POST',body:JSON.stringify({action})});refreshStatus();}
+async function hidePad(padId){try{const res=await j(`/api/hidhide/action/${padId}`,{method:'POST',body:JSON.stringify({action:'check_hide'})});alert(res.message||(res.ok?'隐藏成功':'隐藏失败'));refreshStatus();}catch(e){alert('HidHide 操作失败: '+e.message);}}
+async function quickAction(action){try{if(action==='whitelist'){await j('/api/hidhide/action/global',{method:'POST',body:JSON.stringify({action:'whitelist'})});alert('已添加白名单！');}else if(action==='check_hide'){const s=await j('/api/hidhide/status');alert(`HidHide 状态: ${s.cli_path?'CLI 就绪':'未找到 HidHideCLI'}\n消息: ${s.status?.message||'无'}`);}else if(action==='unhide_all'){await j('/api/hidhide/action/global',{method:'POST',body:JSON.stringify({action:'unhide'})});alert('已取消所有隐藏！');}refreshStatus();}catch(e){alert('操作失败: '+e.message);}}
+
+async function saveConfig(){const patch=(k,v)=>j('/api/config',{method:'POST',body:JSON.stringify({key:k,value:v})});await Promise.all([patch('usbip_host',document.getElementById('cfgUsbipHost').value.trim()),patch('usbip_base_port',parseInt(document.getElementById('cfgBasePort').value)||3240)]);alert('配置已保存，重启服务后生效。');}
+async function saveToken(){await j('/api/config',{method:'POST',body:JSON.stringify({key:'web_token',value:document.getElementById('cfgToken').value.trim()})});alert('Token 已保存。');}
+async function setAutostart(){const en=document.getElementById('autostartToggle').checked;await j('/api/autostart?enabled='+en,{method:'POST'});autostartStatus();}
+async function toggleReconnect(){const en=document.getElementById('reconnectToggle').checked;await j('/api/config',{method:'POST',body:JSON.stringify({key:'reconnect.enabled',value:en})});refreshStatus();}
+async function saveReconnect(){await Promise.all([j('/api/config',{method:'POST',body:JSON.stringify({key:'reconnect.initial_delay',value:parseInt(document.getElementById('reconnectDelay').value)||3})}),j('/api/config',{method:'POST',body:JSON.stringify({key:'reconnect.max_delay',value:parseInt(document.getElementById('reconnectMaxDelay').value)||30})})]);alert('重连策略已保存。');}
+
+async function autostartStatus(){try{const d=await j('/api/autostart/status');document.getElementById('autostartToggle').checked=d.enabled;document.getElementById('autostartLabel').textContent=d.enabled?'已开启':'已关闭';}catch(e){console.error(e);}}
+
+async function loadLogs(){try{const lvl=document.getElementById('logLevel').value,url='/api/logs?limit=500'+(lvl?'&level='+encodeURIComponent(lvl):'');const d=await j(url);const box=document.getElementById('logBox');box.innerHTML=(d.logs||[]).map(l=>`<div class="log-entry"><span class="log-time">[${esc(l.ts)}]</span> <span class="log-level-${esc(l.level)}">[${esc(l.level)}]</span> <span class="log-msg">${esc(l.msg)}</span></div>`).join('')||'<div class="empty">暂无日志</div>';box.scrollTop=box.scrollHeight;}catch(e){console.error(e);}}
+async function setLogLevel(){const lvl=document.getElementById('logLevel').value;if(!lvl)return;await j('/api/logs/level?level='+lvl,{method:'POST'});loadLogs();}
+async function exportLogs(){try{const d=await j('/api/logs?limit=2000');const text=(d.logs||[]).map(l=>`[${l.ts}] [${l.level}] ${l.msg}`).join('\n');const blob=new Blob([text],{type:'text/plain;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ds5hub_logs_'+new Date().toISOString().slice(0,10)+'.txt';a.click();URL.revokeObjectURL(a.href);}catch(e){console.error(e);}}
+
+async function refreshAll(){await Promise.all([refreshStatus(),loadLogs(),autostartStatus()]);}
+
+/* ---- User Guide Modal ---- */
+function showGuide(){document.getElementById('guideModal').classList.add('show');}
+function hideGuide(){document.getElementById('guideModal').classList.remove('show');}
+document.getElementById('guideModal').addEventListener('click',e=>{if(e.target===document.getElementById('guideModal'))hideGuide();});
+
+/* ===============================================================
+   🎮 GAMEPAD TESTER — WebHID + Input API Integration
+   =============================================================== */
+
+/* ---- 手柄测试 tab：通过 iframe 加载完整测试页 /test ---- */
+function initGamepadTab(){ /* iframe 已自动加载 /test 页面，无需额外初始化 */ }
+
+/* ---- 初始化 ---- */
+refreshAll();
+
+// 每 3 秒自动刷新状态
+setInterval(refreshStatus, 3000);
+</script>
+</body>
+</html>

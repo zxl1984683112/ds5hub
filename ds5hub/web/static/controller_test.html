@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DS5Hub — 手柄测试中心</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0b0f18;--card:#111827;--border:#1e293b;--text:#e2e8f0;--muted:#64748b;
+  --accent:#3b82f6;--green:#22c55e;--red:#ef4444;--yellow:#eab308;--pink:#ec4899;
+  --cyan:#06b6d4;--purple:#a855f7;--radius:12px;--radius-sm:8px;
+  --font:'Segoe UI','Microsoft YaHei',system-ui,sans-serif}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden}
+body{display:flex;flex-direction:column}
+button{font-family:var(--font);cursor:pointer;border:none;outline:none}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0}
+.header-left{display:flex;align-items:center;gap:12px}
+.header-logo{font-size:18px;font-weight:700;color:var(--accent)}
+.header-back{background:transparent;color:var(--muted);padding:6px 12px;border-radius:var(--radius-sm);font-size:13px;border:1px solid var(--border);transition:.15s}
+.header-back:hover{color:var(--text);border-color:var(--accent)}
+.conn-bar{display:flex;align-items:center;gap:8px;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:600}
+.conn-bar.connected{background:rgba(34,197,94,.12);color:var(--green)}
+.conn-bar.disconnected{background:rgba(138,147,171,.1);color:var(--muted)}
+.conn-dot{width:8px;height:8px;border-radius:50%}
+.conn-bar.connected .conn-dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+.conn-bar.disconnected .conn-dot{background:var(--muted)}
+.main{flex:1;display:grid;grid-template-columns:1fr 340px;gap:0;overflow:hidden}
+@media(max-width:900px){.main{grid-template-columns:1fr}}
+.panel-left{overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.card-title{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.not-connected-msg{text-align:center;padding:60px 20px;color:var(--muted)}
+.not-connected-msg h3{font-size:18px;color:var(--text);margin-bottom:8px}
+.not-connected-msg p{font-size:13px;margin-bottom:16px;line-height:1.6}
+.btn-connect{padding:12px 32px;background:var(--accent);color:white;border-radius:var(--radius);font-size:15px;font-weight:600;display:inline-block;transition:.15s}
+.btn-connect:hover{filter:brightness(1.15);transform:translateY(-2px);box-shadow:0 4px 20px rgba(59,130,246,.3)}
+.stick-viz{display:flex;justify-content:center;gap:40px;padding:10px 0}
+.stick-circle{width:140px;height:140px;border-radius:50%;background:#0f172a;border:2px solid var(--border);position:relative;overflow:hidden}
+.stick-circle::before{content:'';position:absolute;left:50%;top:0;width:1px;height:100%;background:rgba(255,255,255,.08)}
+.stick-circle::after{content:'';position:absolute;top:50%;left:0;height:1px;width:100%;background:rgba(255,255,255,.08)}
+.stick-dot{width:16px;height:16px;border-radius:50%;background:var(--accent);position:absolute;transform:translate(-50%,-50%);left:50%;top:50%;transition:left .05s,top .05s;box-shadow:0 0 8px rgba(59,130,246,.5)}
+.stick-label{text-align:center;font-size:11px;color:var(--muted);margin-top:6px;font-weight:600}
+.triggers-row{display:flex;gap:16px;justify-content:center;margin:10px 0}
+.trigger-col{display:flex;flex-direction:column;align-items:center;gap:4px}
+.trigger-bar-wrap{width:30px;height:160px;background:#0f172a;border:1px solid var(--border);border-radius:6px;position:relative;overflow:hidden}
+.trigger-bar{position:absolute;bottom:0;width:100%;background:linear-gradient(to top,var(--cyan),var(--accent));transition:height .05s;border-radius:0 0 5px 5px}
+.trigger-val{font-size:11px;color:var(--muted);font-weight:600}
+.dpad-grid{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:3px;justify-content:center}
+.dpad-cell{background:#1e293b;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .1s;user-select:none}
+.dpad-cell.dir-up{grid-column:2;grid-row:1}.dpad-cell.dir-down{grid-column:2;grid-row:3}
+.dpad-cell.dir-left{grid-column:1;grid-row:2}.dpad-cell.dir-right{grid-column:3;grid-row:2}
+.dpad-cell.dir-center{grid-column:2;grid-row:2;background:#161e2e}
+.dpad-cell.active{background:var(--accent);color:white;box-shadow:0 0 10px rgba(59,130,246,.4)}
+.imu-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.imu-cell{background:#0b0f18;border-radius:var(--radius-sm);padding:8px;text-align:center}
+.imu-cell-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.imu-cell-value{font-size:16px;font-weight:700;margin-top:2px;font-family:Consolas,monospace;color:var(--cyan)}
+.touchcanvas-wrap{width:200px;height:120px;margin:0 auto;border:1px solid var(--border);border-radius:8px;overflow:hidden;position:relative}
+.panel-right{background:var(--card);border-left:1px solid var(--border);overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.action-group{background:#0b0f18;border-radius:var(--radius-sm);padding:12px}
+.action-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.btn-action{display:block;width:100%;padding:8px 12px;background:var(--border);color:var(--text);border-radius:var(--radius-sm);font-size:13px;font-weight:500;margin-bottom:6px;transition:.12s}
+.btn-action:hover{filter:brightness(1.15);transform:translateY(-1px)}
+.btn-row{display:flex;gap:6px;margin-bottom:6px}.btn-row .btn-action{flex:1;margin:0}
+.color-swatch{width:32px;height:32px;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:.12s;display:inline-block;margin:2px}
+.color-swatch:hover,.color-swatch.selected{border-color:white;transform:scale(1.1)}
+.range-wrap{margin-bottom:8px}.range-wrap label{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:4px}
+.range-wrap input[type=range]{width:100%;margin:0}
+.battery-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:6px 0}
+.battery-fill{height:100%;border-radius:4px;transition:width .5s,background .5s}
+.info-card{background:#0b0f18;border-radius:var(--radius-sm);padding:10px 12px;font-size:12px}
+.info-card .info-key{color:var(--muted);font-size:10px;text-transform:uppercase}
+.info-card .info-val{font-weight:600;margin-top:2px;font-family:Consolas,monospace}
+.log-feed{max-height:100px;overflow-y:auto;font-family:Consolas,monospace;font-size:10px;line-height:1.5}
+.log-entry{padding:1px 0;border-bottom:1px solid rgba(255,255,255,.03)}
+.log-ts{color:#475569}.log-info{color:var(--cyan)}.log-success{color:var(--green)}.log-warn{color:var(--yellow)}.log-error{color:var(--red)}
+.sep{height:1px;background:var(--border);margin:4px 0}
+.btn-disconnect{width:100%;padding:10px;background:var(--red);color:white;border-radius:var(--radius-sm);font-size:14px;font-weight:600;margin-top:auto}
+.btn-disconnect:hover{filter:brightness(1.1)}
+.ctrl-svg{width:100%;height:auto}
+.ctrl-btn{fill:#1e293b;stroke:#334155;stroke-width:1.5;transition:all .12s}
+.ctrl-btn.pressed{filter:drop-shadow(0 0 8px rgba(59,130,246,.5))}
+.ctrl-btn-triangle.pressed{fill:#eab308!important;stroke:#eab308!important;filter:drop-shadow(0 0 8px rgba(234,179,8,.5))!important}
+.ctrl-btn-circle.pressed{fill:#22c55e!important;stroke:#22c55e!important;filter:drop-shadow(0 0 8px rgba(34,197,94,.5))!important}
+.ctrl-btn-cross.pressed{fill:#ef4444!important;stroke:#ef4444!important;filter:drop-shadow(0 0 8px rgba(239,68,68,.5))!important}
+.ctrl-btn-square.pressed{fill:#ec4899!important;stroke:#ec4899!important;filter:drop-shadow(0 0 8px rgba(236,72,153,.5))!important}
+.ctrl-trigger.active{fill:var(--cyan);stroke:var(--cyan);filter:drop-shadow(0 0 8px rgba(6,182,212,.4))}
+.ctrl-stick-area{fill:#0f172a;stroke:#1e293b;stroke-width:2}
+.ctrl-center-btn.pressed{fill:var(--accent);stroke:var(--accent)}
+.ctrl-share-btn.pressed{fill:var(--purple);stroke:var(--purple)}
+.text-status{font-size:11px;color:var(--muted);text-align:center;margin-top:4px}
+#outputLog{max-height:120px;overflow-y:auto}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <button class="header-back" id="btnBack" onclick="window.location.href='/'">&#x2190; 返回管理面板</button>
+    <span class="header-logo">&#x1F3AE; 手柄测试中心</span>
+    <div class="conn-bar disconnected" id="connBar"><span class="conn-dot"></span><span id="connText">未连接</span></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span id="batteryInfo" style="font-size:12px;color:var(--muted)">&#x26A1; &#x2014;%</span>
+    <span id="usbStatus" style="font-size:12px;color:var(--muted)">&#x1F50C; &#x2014;</span>
+  </div>
+</div>
+
+<div class="main">
+<div class="panel-left" id="leftPanel">
+<div id="notConnectedView" class="not-connected-msg">
+<h3>&#x1F3AE; 选择你的 DualSense 手柄开始测试</h3>
+<p>通过 USB 或蓝牙将手柄连接到电脑。<br>点击下方按钮通过 WebHID API 进行连接。</p>
+<button class="btn-connect" onclick="connectController()">&#x1F517; 选择手柄连接</button>
+<p style="margin-top:16px;font-size:11px;color:#475569">需要 Chrome/Edge 浏览器 &middot; WebHID API<br>如果看不到你的设备，请确认手柄已正确连接</p>
+</div>
+
+<div id="connectedView" style="display:none">
+<!-- Controller Silhouette -->
+<div class="card" id="ctrlContainer">
+<div class="card-title"><span>&#x1F3AE;</span> 实时输入可视化</div>
+<svg class="ctrl-svg" viewBox="0 0 600 420" xmlns="http://www.w3.org/2000/svg">
+<path d="M170,100 C170,40 240,30 300,30 C360,30 430,40 430,100 L460,140 C500,160 530,190 530,240 C530,300 500,370 440,390 C400,400 370,380 360,340 L340,300 L320,290 L300,300 L280,290 L260,300 L240,340 C230,380 200,400 160,390 C100,370 70,300 70,240 C70,190 100,160 140,140 Z" fill="#1a2233" stroke="#334155" stroke-width="2"/>
+<circle cx="200" cy="230" r="32" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+<circle cx="200" cy="230" r="12" fill="var(--accent)" id="stickLDot" style="transition:cx .05s,cy .05s"/>
+<circle cx="400" cy="230" r="32" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+<circle cx="400" cy="230" r="12" fill="var(--accent)" id="stickRDot" style="transition:cx .05s,cy .05s"/>
+<rect x="120" y="175" width="16" height="48" rx="3" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<rect x="104" y="191" width="48" height="16" rx="3" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<text x="128" y="165" text-anchor="middle" font-size="14" fill="#475569" id="dpUpText">&#x25B2;</text>
+<text x="128" y="248" text-anchor="middle" font-size="14" fill="#475569" id="dpDownText">&#x25BC;</text>
+<text x="94" y="201" text-anchor="middle" font-size="14" fill="#475569" id="dpLeftText">&#x25C0;</text>
+<text x="162" y="201" text-anchor="middle" font-size="14" fill="#475569" id="dpRightText">&#x25B6;</text>
+<text class="ctrl-btn ctrl-btn-triangle" id="btnTriangle" x="400" y="118" text-anchor="middle" dominant-baseline="central" font-size="22" fill="#eab308" stroke="none">&#x25B2;</text>
+<text class="ctrl-btn ctrl-btn-circle" id="btnCircle" x="455" y="150" text-anchor="middle" dominant-baseline="central" font-size="20" fill="#22c55e" stroke="none">&#x25CB;</text>
+<text class="ctrl-btn ctrl-btn-cross" id="btnCross" x="400" y="182" text-anchor="middle" dominant-baseline="central" font-size="20" fill="#ef4444" stroke="none">&#x2715;</text>
+<text class="ctrl-btn ctrl-btn-square" id="btnSquare" x="345" y="150" text-anchor="middle" dominant-baseline="central" font-size="20" fill="#ec4899" stroke="none">&#x25A1;</text>
+<rect class="ctrl-share-btn" id="btnShare" x="175" y="130" width="24" height="12" rx="6"/>
+<circle class="ctrl-center-btn" id="btnPS" cx="300" cy="130" r="14"/>
+<rect x="255" y="65" width="90" height="50" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+<text x="300" y="95" text-anchor="middle" font-size="10" fill="#475569" pointer-events="none">TOUCHPAD</text>
+<rect class="ctrl-trigger" id="btnL1" x="160" y="85" width="80" height="14" rx="4"/>
+<text x="200" y="96" text-anchor="middle" font-size="10" fill="#64748b">L1</text>
+<rect class="ctrl-trigger" id="btnR1" x="360" y="85" width="80" height="14" rx="4"/>
+<text x="400" y="96" text-anchor="middle" font-size="10" fill="#64748b">R1</text>
+<rect class="ctrl-trigger" id="btnL2" x="150" y="60" width="65" height="24" rx="6"/>
+<text x="182" y="77" text-anchor="middle" font-size="11" fill="#64748b">L2</text>
+<rect class="ctrl-trigger" id="btnR2" x="385" y="60" width="65" height="24" rx="6"/>
+<text x="417" y="77" text-anchor="middle" font-size="11" fill="#64748b">R2</text>
+</svg>
+</div>
+
+<!-- Analog Sticks -->
+<div class="card">
+<div class="card-title"><span>&#x1F579;&#xFE0F;</span> 模拟摇杆</div>
+<div class="stick-viz">
+<div><div class="stick-circle"><div class="stick-dot" id="stickDotL"></div></div><div class="stick-label">左摇杆 (LX/LY)</div><div id="stickLLeg" class="text-status"></div></div>
+<div><div class="stick-circle"><div class="stick-dot" id="stickDotR"></div></div><div class="stick-label">右摇杆 (RX/RY)</div><div id="stickRLeg" class="text-status"></div></div>
+</div>
+<div style="display:flex;justify-content:center;gap:20px;font-size:11px;color:var(--muted)">
+<span>LX: <b id="valLX">0</b></span><span>LY: <b id="valLY">0</b></span>
+<span>RX: <b id="valRX">0</b></span><span>RY: <b id="valRY">0</b></span>
+</div>
+</div>
+
+<!-- Triggers -->
+<div class="card">
+<div class="card-title"><span>&#x1F527;</span> 自适应扳机</div>
+<div class="triggers-row">
+<div class="trigger-col"><div class="trigger-bar-wrap"><div class="trigger-bar" id="l2Bar" style="height:0%"></div></div><span class="trigger-val" id="l2Val">0%</span><span style="font-size:10px;color:var(--muted)">L2</span></div>
+<div style="display:flex;align-items:center;color:var(--muted);font-size:12px">|</div>
+<div class="trigger-col"><div class="trigger-bar-wrap"><div class="trigger-bar" id="r2Bar" style="height:0%"></div></div><span class="trigger-val" id="r2Val">0%</span><span style="font-size:10px;color:var(--muted)">R2</span></div>
+</div>
+</div>
+
+<!-- D-Pad -->
+<div class="card">
+<div class="card-title"><span>&#x1F3AF;</span> 方向键</div>
+<div class="dpad-grid">
+<div class="dpad-cell dir-up" id="dpUp">&#x25B2;</div>
+<div class="dpad-cell dir-left" id="dpLeft">&#x25C0;</div>
+<div class="dpad-cell dir-center"></div>
+<div class="dpad-cell dir-right" id="dpRight">&#x25B6;</div>
+<div class="dpad-cell dir-down" id="dpDown">&#x25BC;</div>
+</div>
+</div>
+
+<!-- Touchpad -->
+<div class="card">
+<div class="card-title"><span>&#x1F4F1;</span> 触摸板</div>
+<div style="text-align:center">
+<canvas id="touchCanvas" width="200" height="120" style="border:1px solid var(--border);border-radius:8px;background:#0f172a"></canvas>
+<div class="text-status" id="touchCoord">X: &#x2014; Y: &#x2014; | 触控点: 0</div>
+</div>
+</div>
+
+<!-- IMU -->
+<div class="card">
+<div class="card-title"><span>&#x1F300;</span> 陀螺仪 &amp; 加速度计</div>
+<div class="imu-grid">
+<div class="imu-cell"><div class="imu-cell-label">角速度 X (&deg;/s)</div><div class="imu-cell-value" id="gyroX">0.00</div></div>
+<div class="imu-cell"><div class="imu-cell-label">角速度 Y (&deg;/s)</div><div class="imu-cell-value" id="gyroY">0.00</div></div>
+<div class="imu-cell"><div class="imu-cell-label">角速度 Z (&deg;/s)</div><div class="imu-cell-value" id="gyroZ">0.00</div></div>
+<div class="imu-cell"><div class="imu-cell-label">加速度 X (g)</div><div class="imu-cell-value" id="accX">0.00</div></div>
+<div class="imu-cell"><div class="imu-cell-label">加速度 Y (g)</div><div class="imu-cell-value" id="accY">0.00</div></div>
+<div class="imu-cell"><div class="imu-cell-label">加速度 Z (g)</div><div class="imu-cell-value" id="accZ">0.00</div></div>
+</div>
+</div>
+
+<!-- Log -->
+<div class="card">
+<div class="card-title"><span>&#x1F4CB;</span> 输出日志</div>
+<div class="log-feed" id="outputLog"><div class="log-entry"><span class="log-ts">[--:--]</span> <span class="log-info">等待输出测试...</span></div></div>
+</div>
+</div><!-- /connectedView -->
+</div><!-- /panel-left -->
+
+<!-- RIGHT SIDEBAR -->
+<div class="panel-right" id="rightPanel">
+<div id="deviceInfoSection" class="action-group" style="display:none">
+<div class="action-group-title">&#x1F4BB; 设备信息</div>
+<div class="info-card"><div class="info-key">产品 ID</div><div class="info-val" id="devPid">&#x2014;</div></div>
+<div class="info-card" style="margin-top:6px"><div class="info-key">序列号</div><div class="info-val" id="devSerial" style="word-break:break-all">&#x2014;</div></div>
+<div class="info-card" style="margin-top:6px"><div class="info-key">固件版本</div><div class="info-val" id="devFirmware">&#x2014;</div></div>
+<div class="info-card" style="margin-top:6px">
+<div class="info-key">电池电量</div>
+<div class="battery-bar"><div class="battery-fill" id="batteryFill" style="width:0%"></div></div>
+<div style="font-size:11px;text-align:right" id="batteryPct">&#x2014;%</div>
+</div>
+<div class="info-card" style="margin-top:6px"><div class="info-key">连接方式</div><div class="info-val" id="devConnMethod">&#x2014;</div></div>
+</div>
+<div class="sep"></div>
+<div class="action-group">
+<div class="action-group-title">&#x1F4A5; 震动马达</div>
+<div class="btn-row"><button class="btn-action" onclick="doRumble('large')">大马达 ON</button><button class="btn-action" onclick="doRumbleOff()">OFF</button></div>
+<div class="btn-row"><button class="btn-action" onclick="doRumble('small')">小马达 ON</button><button class="btn-action" onclick="doPattern('wave')">波纹</button></div>
+</div>
+<div class="action-group">
+<div class="action-group-title">&#x1F4A1; 灯效控制</div>
+<div class="color-picker-wrap" id="presetColors"></div>
+<div class="btn-row">
+<button class="btn-action" onclick="setLightbar(0,0,255)" style="flex:1">蓝</button>
+<button class="btn-action" onclick="setLightbar(255,0,0)" style="flex:1">红</button>
+<button class="btn-action" onclick="setLightbar(0,255,0)" style="flex:1">绿</button>
+<button class="btn-action" onclick="setLightbar(255,255,255)" style="flex:1">白</button>
+</div>
+<div class="range-wrap"><label><span>亮度</span><span id="brightnessVal">100%</span></label><input type="range" min="0" max="100" value="100" oninput="setBrightness(this.value)"></div>
+<div class="range-wrap"><label><span>LED 呼吸频率</span><span id="breathRateVal">中等</span></label><input type="range" min="0" max="10" value="5" oninput="setBreathing(this.value)"></div>
+</div>
+<div class="action-group">
+<div class="action-group-title">&#x1F464; 玩家指示灯</div>
+<div class="btn-row" style="flex-wrap:wrap">
+<button class="btn-action" onclick="setPlayerLed(1)" style="flex:0 0 calc(50%-3px)">LED 1</button>
+<button class="btn-action" onclick="setPlayerLed(2)" style="flex:0 0 calc(50%-3px)">LED 2</button>
+<button class="btn-action" onclick="setPlayerLed(3)" style="flex:0 0 calc(50%-3px)">LED 3</button>
+<button class="btn-action" onclick="setPlayerLed(4)" style="flex:0 0 calc(50%-3px)">LED 4</button>
+<button class="btn-action" onclick="setPlayerLed(0)" style="flex:0 0 100%">全部关闭</button>
+</div>
+</div>
+<div class="action-group">
+<div class="action-group-title">&#x1F3ED;&#xFE0F; 快速功能测试</div>
+<div class="btn-row"><button class="btn-action" onclick="testOutputAll()">&#x2705; 全输出自检</button></div>
+<div class="btn-row"><button class="btn-action" onclick="readFactoryInfo()">读取出厂信息</button></div>
+<div id="factoryInfoOutput" style="font-size:11px;color:var(--muted);margin-top:6px;white-space:pre-line">&#x2014;</div>
+</div>
+<button class="btn-disconnect" id="btnDisconnect" onclick="disconnectController()" style="display:none">断开连接</button>
+</div><!-- /panel-right -->
+</div><!-- /main -->
+
+<script>
+// ============ Global State ============
+let hidDevice=null,isConnected=false,gyroAccelData=null,touches=[],curLR={r:0,g:0,b:255};
+
+// ============ Connection ============
+async function connectController(){
+  if(!navigator.hid){alert('您的浏览器不支持 WebHID API。\n请使用 Chrome 110+ 或 Edge 110+');return}
+  try{
+    const devices=await navigator.hid.requestDevice({filters:[{vendorId:0x054C},{usagePage:0xFF00,usage:0x0001}]});
+    if(!devices||!devices.length)return;
+    hidDevice=devices[0];
+    await hidDevice.open();
+    isConnected=true;
+    updateUI(true);
+    addLog('已连接: '+hidDevice.productName,'success');
+    hidDevice.addEventListener('inputreport',onInputReport);
+    requestAnimationFrame(updateIMUDisplay);
+  }catch(e){addLog('连接失败: '+e.message,'error')}
+}
+
+function disconnectController(){
+  if(!hidDevice||!isConnected)return;
+  doRumbleOff();setLightbar(0,0,0);
+  hidDevice.removeEventListener('inputreport',onInputReport);
+  hidDevice.close().catch(()=>{});
+  isConnected=false;hidDevice=null;updateUI(false);addLog('已断开','warn');
+}
+
+function updateUI(c){
+  document.getElementById('connBar').className='conn-bar '+(c?'connected':'disconnected');
+  document.getElementById('connText').textContent=c?(hidDevice?.productName||'已连接'):'未连接';
+  document.getElementById('notConnectedView').style.display=c?'none':'block';
+  document.getElementById('connectedView').style.display=c?'block':'none';
+  document.getElementById('btnDisconnect').style.display=c?'block':'none';
+  document.getElementById('deviceInfoSection').style.display=c?'block':'none';
+  if(c){
+    document.getElementById('devPid').textContent='0x'+hidDevice.productId.toString(16).toUpperCase();
+    document.getElementById('devSerial').textContent=hidDevice.serialNumber||'N/A';
+    document.getElementById('devConnMethod').textContent='WebHID (USB/Bluetooth)';
+  }else resetButtonVisuals();
+}
+
+// ============ Input Report Parsing ============
+function onInputReport(ev){
+  const buf=new Uint8Array(ev.data.buffer),rid=buf[0],last=buf;
+  switch(rid){
+    case 0x02:parseGeneral(buf);break;case 0x21:parseAnalogButtons(buf);break;
+    case 0x22:parseSticks(buf);break;case 0x23:parseDPad(buf);break;
+    case 0x24:parseTriggers(buf);break;case 0x25:parseTouchpad(buf);break;
+    case 0x30:parseGyroAccel(buf);break;case 0x31:parseBattery(buf);break;
+    default:addLog('收到报告 ID=0x'+rid.toString(16).toUpperCase(),'info');
+  }
+}
+
+function parseGeneral(b){
+  const s=b[2]|(b[3]<<8);
+  toggleBtn('btnPS',!!(s&0x01));toggleBtn('btnShare',!!(s&0x02));
+  toggleBtn('btnL1',!!(s&0x04));toggleBtn('btnR1',!!(s&0x08));
+}
+function parseAnalogButtons(b){
+  const s=b[1]|(b[2]<<8);
+  toggleBtn('btnTriangle',!!(s&0x01));toggleBtn('btnCross',!!(s&0x02));
+  toggleBtn('btnCircle',!!(s&0x04));toggleBtn('btnSquare',!!(s&0x08));
+  toggleBtn('btnL2',!!(s&0x10));toggleBtn('btnR2',!!(s&0x20));
+}
+function parseSticks(b){
+  const lx=(b[3]<<8)|b[2],ly=(b[5]<<8)|b[4],rx=(b[7]<<8)|b[6],ry=(b[9]<<8)|b[8];
+  updateStickViz('stickDotL','stickLLeg',lx,ly);updateStickViz('stickDotR','stickRLeg',rx,ry);
+  document.getElementById('valLX').textContent=lx;document.getElementById('valLY').textContent=ly;
+  document.getElementById('valRX').textContent=rx;document.getElementById('valRY').textContent=ry;
+}
+function updateStickViz(dotId,legId,x,y){
+  const dot=document.getElementById(dotId);if(!dot)return;
+  const nx=((x-32768)/32768),ny=-((y-32768)/32768);
+  dot.style.left=(50+nx*40)+'%';dot.style.top=(50+ny*40)+'%';
+  if(legId)document.getElementById(legId).textContent=Math.round(nx*100)+', '+Math.round(ny*100);
+}
+function parseDPad(b){
+  document.getElementById('dpUp').classList.toggle('active',!!(b[1]&1));
+  document.getElementById('dpDown').classList.toggle('active',!!(b[1]&2));
+  document.getElementById('dpLeft').classList.toggle('active',!!(b[1]&4));
+  document.getElementById('dpRight').classList.toggle('active',!!(b[1]&8));
+}
+function parseTriggers(b){
+  const l2Raw=((b[3]&0xF)<<8)|b[2],r2Raw=((b[5]&0xF)<<8)|b[4];
+  const l2=Math.round(l2Raw/4095*100),r2=Math.round(r2Raw/4095*100);
+  document.getElementById('l2Bar').style.height=l2+'%';document.getElementById('r2Bar').style.height=r2+'%';
+  document.getElementById('l2Val').textContent=l2+'%';document.getElementById('r2Val').textContent=r2+'%';
+}
+function parseTouchpad(b){
+  touches=[];
+  for(let i=0;i<2;i++){const idx=6+i*8;if(idx+8>b.length)break;
+    if(b[idx]===0xFF)continue;
+    const x=(b[idx+2]<<8)|b[idx+1],y=(b[idx+4]<<8)|b[idx+3];
+    touches.push({x,y});
+  }
+  paintTouchCanvas(touches);
+  const c=document.getElementById('touchCoord');
+  if(c)c.textContent=(touches.length?Math.round(touches.reduce((s,t)=>s+t.x,0)/touches.length):'\u2014')+' | '+
+    (touches.length?Math.round(touches.reduce((s,t)=>s+t.y,0)/touches.length):'\u2014')+' | \u89E6\u63A7\u70B9:'+touches.length;
+}
+function parseGyroAccel(b){
+  gyroAccelData={
+    gx:read16(b,2)/16.4,gy:read16(b,4)/16.4,gz:read16(b,6)/16.4,
+    ax:read16(b,8)/16384,ay:read16(b,10)/16384,az:read16(b,12)/16384
+  };
+}
+function read16(b,o){return(b[o+1]<<8)|b[o]}
+function parseBattery(b){
+  const raw=b[1],chg=!!(raw&0x80),lvl=raw&0x7F;
+  if(lvl>0&&lvl<=100){
+    document.getElementById('batteryInfo').textContent='\u26A1 '+lvl+'%';
+    document.getElementById('batteryPct').textContent=lvl+'%';
+    document.getElementById('batteryFill').style.width=lvl+'%';
+    const f=document.getElementById('batteryFill');
+    f.style.background=lvl<20?'var(--red)':lvl<50?'var(--yellow)':'var(--green)';
+  }
+  document.getElementById('usbStatus').textContent=chg?'&#x1F50C; \u5145\u7535\u4E2D':'&#x1F50C; \u672A\u5145\u7535';
+}
+
+// ============ Button Visuals ============
+function toggleBtn(id,p){const e=document.getElementById(id);if(!e)return;p?e.classList.add('pressed'):e.classList.remove('pressed')}
+function resetButtonVisuals(){document.querySelectorAll('.ctrl-btn,.ctrl-trigger,.ctrl-share-btn,.ctrl-center-btn').forEach(e=>e.classList.remove('pressed','active'));['dpUp','dpDown','dpLeft','dpRight'].forEach(id=>{const e=document.getElementById(id);if(e)e.classList.remove('active')})}
+
+// ============ IMU Display ============
+function updateIMUDisplay(){
+  if(!gyroAccelData||!isConnected){requestAnimationFrame(updateIMUDisplay);return}
+  document.getElementById('gyroX').textContent=gyroAccelData.gx.toFixed(2);
+  document.getElementById('gyroY').textContent=gyroAccelData.gy.toFixed(2);
+  document.getElementById('gyroZ').textContent=gyroAccelData.gz.toFixed(2);
+  document.getElementById('accX').textContent=gyroAccelData.ax.toFixed(2);
+  document.getElementById('accY').textContent=gyroAccelData.ay.toFixed(2);
+  document.getElementById('accZ').textContent=gyroAccelData.az.toFixed(2);
+  requestAnimationFrame(updateIMUDisplay);
+}
+
+// ============ Touch Canvas ============
+function paintTouchCanvas(pts){
+  const cv=document.getElementById('touchCanvas'),ctx=cv?.getContext('2d');if(!ctx)return;
+  ctx.clearRect(0,0,cv.width,cv.height);ctx.fillStyle='#0f172a';ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.strokeStyle='rgba(255,255,255,.03)';ctx.lineWidth=1;
+  for(let i=0;i<cv.width;i+=20){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,cv.height);ctx.stroke()}
+  for(let i=0;i<cv.height;i+=20){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(cv.width,i);ctx.stroke()}
+  pts.forEach(t=>{const x=(t.x/1920)*cv.width,y=(t.y/1080)*cv.height;
+    ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fillStyle='rgba(59,130,246,.4)';ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.strokeStyle='#3b82f6';ctx.lineWidth=2;ctx.stroke()});
+}
+
+// ============ Output Reports ============
+function sendFeatureReport(rid,data){
+  if(!hidDevice||!isConnected)return false;
+  try{hidDevice.sendFeatureReport(rid,new Uint8Array(data));return true}catch(e){addLog('输出报告失败: '+e.message,'error');return false}
+}
+function sendOutputReport(rid,data){
+  if(!hidDevice||!isConnected)return false;
+  try{hidDevice.sendReport(rid,new Uint8Array(data));return true}catch(e){addLog('输出报告失败: '+e.message,'error');return false}
+}
+
+// Rumble
+function doRumble(type){
+  const li=type==='large'?[0xFF,0xFF]:[0x00,0x00],si=type==='small'?[0xFF,0xFF]:[0x00,0x00];
+  sendOutputReport(0x10,[0x10,0x01,...li,...si]);
+  addLog(type==='large'?'\u5927\u9A6C\u8FBE':'\u5C0F\u9A6C\u8FBE'+'\u9707\u52A8 ON','success');
+}
+function doRumbleOff(){sendOutputReport(0x10,[0x10,0x00])}
+function doPattern(pat){
+  if(pat==='wave'){let s=0;const iv=setInterval(()=>{
+    if(!isConnected||pat!=='wave'){clearInterval(iv);doRumbleOff();return}
+    const t=s/10,int=Math.floor(Math.sin(t*Math.PI*2)*200+55);
+    sendOutputReport(0x10,[0x10,0x01,0xFF,int,0xFF,int]);s++;
+  },50);setTimeout(()=>{clearInterval(iv);doRumbleOff()},2000);
+  addLog('\u6CE2\u7EB9\u6A21\u5F0F\u9707\u52A8(2\u79D2)','success')}
+}
+
+// Lightbar
+function setLightbar(r,g,b){curLR={r,g,b};sendFeatureReport(0x30,[0x30,0x02,r,g,b]);addLog('\u706F\u6548 RGB('+r+','+g+','+b+')','info')}
+function setBrightness(v){document.getElementById('brightnessVal').textContent=v+'%';
+  const br=v/100;setLightbar(Math.round(curLR.r*br),Math.round(curLR.g*br),Math.round(curLR.b*br))}
+function setBreathing(v){document.getElementById('breathRateVal').textContent=v<3?'\u6162\u901F':v<7?'\u4E2D\u7B49':'\u5FEB\u901F'}
+
+// Player LEDs
+function setPlayerLed(n){const m={1:0x01,2:0x02,3:0x04,4:0x08,0:0x00};sendFeatureReport(0x30,[0x30,0x03,m[n]||0]);addLog('\u73A9\u5BB6 LED '+n,'info')}
+
+// Factory Info
+function readFactoryInfo(){
+  if(!hidDevice||!isConnected)return;
+  try{
+    document.getElementById('factoryInfoOutput').textContent='\u4EA7\u54C1ID: 0x'+hidDevice.productId.toString(16).toUpperCase()+
+      '\n\u5E8F\u5217\u53F7: '+(hidDevice.serialNumber||'N/A')+
+      '\n\u5382\u5546: '+(hidDevice.manufacturerString||'N/A')+
+      '\n\u4EA7\u54C1: '+(hidDevice.productName||'N/A');
+    addLog('\u8BFB\u53D6\u8BBE\u5907\u4FE1\u606F','success');
+  }catch(e){document.getElementById('factoryInfoOutput').textContent='\u9519\u8BEF: '+e.message}
+}
+
+// Full output test
+function testOutputAll(){
+  if(!isConnected)return;
+  addLog('\u5F00\u59CB\u5168\u8F93\u51FA\u81EA\u68C0...','info');
+  // Step 1: Set blue lightbar
+  setLightbar(0,0,255);
+  setTimeout(()=>{
+    // Step 2: Rumble large 300ms
+    doRumble('large');
+    setTimeout(()=>{doRumbleOff();
+      // Step 3: Set player LED 1
+      setPlayerLed(1);
+      setTimeout(()=>{
+        // Step 4: Set red lightbar
+        setLightbar(255,0,0);
+        setTimeout(()=>{
+          setLightbar(0,255,0);
+          setTimeout(()=>{
+            setLightbar(255,255,255);
+            setTimeout(()=>{
+              setLightbar(0,0,0);
+              setPlayerLed(0);
+              addLog('\u81EA\u68C0\u5B8C\u6210 \u2705','success');
+            },300);
+          },300);
+        },300);
+      },300);
+    },300);
+  },300);
+}
+
+// Logging
+function addLog(msg,type='info'){
+  const feed=document.getElementById('outputLog');if(!feed)return;
+  const n=new Date(),ts=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0');
+  const cls={info:'log-info',success:'log-success',warn:'log-warn',error:'log-error'}[type]||'log-info';
+  const e=document.createElement('div');e.className='log-entry';
+  e.innerHTML='<span class="log-ts">['+ts+']</span> <span class="'+cls+'">'+msg+'</span>';
+  feed.appendChild(e);feed.scrollTop=feed.scrollHeight;
+}
+
+// Color presets
+const COLORS=[{r:255,g:0,b:0},{r:255,g:165,b:0},{r:255,g:255,b:0},{r:0,g:255,b:0},
+  {r:0,g:255,b:255},{r:0,g:0,b:255},{r:128,g:0,b:255},{r:255,g:0,b:255},{r:255,g:255,b:255},{r:0,g:0,b:0}];
+function initPresets(){
+  const c=document.getElementById('presetColors');if(!c)return;
+  COLORS.forEach(cl=>{const s=document.createElement('div');s.className='color-swatch';
+    s.style.background='rgb('+cl.r+','+cl.g+','+cl.b+')';
+    s.onclick=()=>setLightbar(cl.r,cl.g,cl.b);c.appendChild(s)});
+}
+
+document.addEventListener('DOMContentLoaded',()=>{initPresets();
+  // 嵌入模式（iframe）下隐藏"返回管理面板"按钮，避免嵌套
+  if(window.self!==window.top){const b=document.getElementById('btnBack');if(b)b.style.display='none';}
+  if(!navigator.hid){const m=document.querySelector('.not-connected-msg p');if(m)m.innerHTML='<span style="color:var(--yellow)">&#x26A0;&#xFE0F; \u60A8\u7684\u6D4F\u89C8\u5668\u4E0D\u652F\u6301 WebHID API<br>\u8BF7\u4F7F\u7528 Chrome 110+ \u6216 Edge 110+</span>'}
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+﻿# DS5Hub 依赖清单
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+hidapi>=0.13.1; sys_platform == "win32"
+pystray>=0.19.4
+Pillow>=10.1.0
+websockets>=12.0
